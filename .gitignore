@@ -1,0 +1,31 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large Files & Model Outputs
+**/output/
+*.onnx
+*.bin
+*.model
+*.safetensors
+*.pt
+*.pth
+*.pkl
