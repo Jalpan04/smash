@@ -5,6 +5,36 @@ use std::path::Path;
 use std::process::{Child, Command as ProcessCommand, Stdio};
 use crate::parser::Command;
 
+/// Attempt to spawn a command. On Windows, if the binary is not found as a
+/// standalone executable, transparently retry it through PowerShell so that
+/// cmdlets like `Get-ChildItem`, `Get-PSDrive`, etc. work out of the box.
+fn spawn_command(
+    args: &[String],
+    stdin: Stdio,
+    stdout: Stdio,
+) -> std::io::Result<Child> {
+    let mut cmd = ProcessCommand::new(&args[0]);
+    cmd.args(&args[1..]);
+    cmd.stdin(stdin).stdout(stdout).stderr(Stdio::inherit());
+
+    #[cfg(target_os = "windows")]
+    match cmd.spawn() {
+        Ok(child) => return Ok(child),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Re-run the whole thing through PowerShell
+            let ps_cmd = args.join(" ");
+            let mut ps = ProcessCommand::new("powershell.exe");
+            ps.args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd]);
+            ps.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+            return ps.spawn();
+        }
+        Err(e) => return Err(e),
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    cmd.spawn()
+}
+
 pub fn execute_builtin(cmd: &Command) -> Result<bool, String> {
     if cmd.args.is_empty() {
         return Ok(false);
@@ -130,14 +160,7 @@ pub fn execute_pipeline(pipeline: Vec<Command>) {
             stdin
         };
 
-        let mut child_cmd = ProcessCommand::new(&cmd.args[0]);
-        child_cmd.args(&cmd.args[1..]);
-        child_cmd.stdin(actual_stdin).stdout(stdout).stderr(Stdio::inherit());
-
-        // Environment variable expansion
-        // (Handled internally if we expanded before execution)
-
-        match child_cmd.spawn() {
+        match spawn_command(&cmd.args, actual_stdin, stdout) {
             Ok(mut child) => {
                 if i < pipe_len - 1 {
                     previous_command_stdout = Some(Stdio::from(child.stdout.take().unwrap()));
