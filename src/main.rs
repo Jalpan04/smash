@@ -7,46 +7,55 @@ use reedline::{Reedline, Signal};
 use std::env;
 use std::borrow::Cow;
 
+// Detect the platform at compile time
+#[cfg(target_os = "windows")]
+const PLATFORM: &str = "windows";
+#[cfg(not(target_os = "windows"))]
+const PLATFORM: &str = "linux";
+
 pub struct SmashPrompt;
 impl reedline::Prompt for SmashPrompt {
-    fn render_prompt_left(&self) -> Cow<str> {
+    fn render_prompt_left(&self) -> Cow<'_, str> {
         if let Ok(cwd) = env::current_dir() {
             Cow::Owned(format!("\x1b[32msmash\x1b[0m:\x1b[34m{}\x1b[0m> ", cwd.display()))
         } else {
             Cow::Borrowed("smash> ")
         }
     }
-    
-    fn render_prompt_right(&self) -> Cow<str> {
+
+    fn render_prompt_right(&self) -> Cow<'_, str> {
         Cow::Borrowed("")
     }
-    
-    fn render_prompt_indicator(&self, _prompt_mode: reedline::PromptEditMode) -> Cow<str> {
+
+    fn render_prompt_indicator(&self, _prompt_mode: reedline::PromptEditMode) -> Cow<'_, str> {
         Cow::Borrowed("")
     }
-    
-    fn render_prompt_multiline_indicator(&self) -> Cow<str> {
+
+    fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
         Cow::Borrowed("... ")
     }
-    
-    fn render_prompt_history_search_indicator(&self, _history_search: reedline::PromptHistorySearch) -> Cow<str> {
+
+    fn render_prompt_history_search_indicator(&self, _history_search: reedline::PromptHistorySearch) -> Cow<'_, str> {
         Cow::Borrowed("?")
     }
 }
 
 fn main() {
-    println!("Welcome to Smash (Smart Bash)!");
-    println!("Loading AI model... (this may take a moment)");
+    println!("Smash (Smart Bash) - running on {}", PLATFORM);
+    println!("Loading AI model...");
 
     let ml_dir = match env::var("SMASH_MODEL_DIR") {
         Ok(val) => val,
-        Err(_) => "ml/output/onnx".to_string(), // Default assuming we run from smash root
+        Err(_) => "ml/output/onnx".to_string(),
     };
 
     let mut ai = match SmashAI::new(&ml_dir) {
-        Ok(ai) => Some(ai),
+        Ok(ai) => {
+            println!("AI model loaded.");
+            Some(ai)
+        }
         Err(e) => {
-            eprintln!("Failed to load Smash AI model: {}", e);
+            eprintln!("Warning: AI model not loaded ({}). Shell will run in passthrough mode.", e);
             None
         }
     };
@@ -66,29 +75,36 @@ fn main() {
                 let mut command_to_run = input.to_string();
 
                 if let Some(ref mut smash_ai) = ai {
-                    // Try to translate if it looks like natural language
-                    let is_natural_language = input.starts_with("smash ") || input.starts_with("please ") || input.starts_with("can you ") || (!input.contains(" -") && !input.contains("/") && !input.contains("\\"));
-                    
                     if input.starts_with("smash ") {
+                        // Explicit AI invocation: "smash <natural language>"
                         let nl_query = input.trim_start_matches("smash ").trim();
-                        match smash_ai.generate(nl_query) {
+                        match smash_ai.generate(PLATFORM, nl_query) {
                             Ok(translated) => {
-                                println!("\x1b[35mSMASH AI SUGGESTS:\x1b[0m {}", translated);
-                                command_to_run = translated.clone();
+                                println!("\x1b[35m[{}] AI suggests:\x1b[0m {}", PLATFORM, translated);
+                                command_to_run = translated;
                             }
-                            Err(e) => eprintln!("AI Error: {}", e),
+                            Err(e) => eprintln!("AI error: {}", e),
                         }
-                    } else if is_natural_language && input.split_whitespace().count() > 2 {
-                        // implicit translation
-                        match smash_ai.generate(input) {
-                            Ok(translated) => {
-                                // If translation generated something different and looks like a real command
-                                if translated != input && !translated.is_empty() {
-                                    println!("\x1b[35mSMASH AI TRANSLATED:\x1b[0m {}", translated);
-                                    command_to_run = translated.clone();
+                    } else {
+                        // Implicit translation heuristic:
+                        // more than 2 words, no shell operators, no path separators
+                        let word_count = input.split_whitespace().count();
+                        let looks_like_nl = word_count > 2
+                            && !input.contains('/')
+                            && !input.contains('\\')
+                            && !input.contains('|')
+                            && !input.contains('>')
+                            && !input.contains('<')
+                            && !input.starts_with('-');
+
+                        if looks_like_nl {
+                            match smash_ai.generate(PLATFORM, input) {
+                                Ok(translated) if translated != input && !translated.is_empty() => {
+                                    println!("\x1b[35m[{}] AI translated:\x1b[0m {}", PLATFORM, translated);
+                                    command_to_run = translated;
                                 }
+                                _ => {}
                             }
-                            Err(_) => {}
                         }
                     }
                 }

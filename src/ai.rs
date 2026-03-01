@@ -34,8 +34,8 @@ impl SmashAI {
         })
     }
 
-    pub fn generate(&mut self, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let input_text = format!("smash translate: {}", prompt);
+    pub fn generate(&mut self, platform: &str, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
+        let input_text = format!("smash translate {}: {}", platform, prompt);
         let encoding = self.tokenizer.encode(input_text, true).map_err(|e| e.to_string())?;
         
         let mut input_ids = encoding.get_ids().to_vec();
