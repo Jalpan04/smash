@@ -1,15 +1,15 @@
 use std::env;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command as ProcessCommand, Stdio};
 use crate::parser::Command;
 
-
-/// Spawn a command, routing through PowerShell on Windows so that both
-/// PowerShell cmdlets (Get-ChildItem, Get-PSDrive, …) and real executables
-/// (git, cargo, python, …) work without any guessing.
-///
-/// On Linux the command is spawned directly.
+// ---------------------------------------------------------------------------
+// Internal: spawn a single process
+// On Windows everything goes through PowerShell so both real executables
+// (git, cargo, python) and PowerShell cmdlets work uniformly.
+// On Linux the command is spawned directly.
+// ---------------------------------------------------------------------------
 fn spawn_command(
     args: &[String],
     stdin: Stdio,
@@ -21,10 +21,6 @@ fn spawn_command(
 
     #[cfg(target_os = "windows")]
     {
-        // Always use PowerShell on Windows. This means cmdlets like
-        // `Get-ChildItem` and real programs like `git` both work, and
-        // the stdout Stdio value is correctly forwarded (no try-and-retry
-        // that would lose the piped handle).
         let ps_cmd = args.join(" ");
         let mut ps = ProcessCommand::new("powershell.exe");
         ps.args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd]);
@@ -41,45 +37,110 @@ fn spawn_command(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Clear the terminal using crossterm
+// ---------------------------------------------------------------------------
+fn builtin_clear() {
+    use crossterm::{execute, terminal::{Clear, ClearType}, cursor::MoveTo};
+    let mut out = std::io::stdout();
+    let _ = execute!(out, Clear(ClearType::All), MoveTo(0, 0));
+}
 
-pub fn execute_builtin(cmd: &Command) -> Result<bool, String> {
+// ---------------------------------------------------------------------------
+// Print command history from the history file
+// ---------------------------------------------------------------------------
+fn builtin_history(history_path: &Path) {
+    match std::fs::read_to_string(history_path) {
+        Ok(content) => {
+            for (i, line) in content.lines().enumerate() {
+                println!("{:5}  {}", i + 1, line);
+            }
+        }
+        Err(e) => eprintln!("history: {}", e),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Built-in command handler
+// Returns Ok(true)  -> handled as builtin, stop processing
+//         Ok(false) -> not a builtin, fall through to spawn
+//         Err(e)    -> builtin failed
+// ---------------------------------------------------------------------------
+pub fn execute_builtin(
+    cmd: &Command,
+    prev_dir: &mut Option<PathBuf>,
+    history_path: &Path,
+) -> Result<bool, String> {
     if cmd.args.is_empty() {
         return Ok(false);
     }
 
     let bin = &cmd.args[0];
     match bin.as_str() {
+        // ── cd ───────────────────────────────────────────────────────────
         "cd" => {
-            let new_dir = if cmd.args.len() > 1 {
-                &cmd.args[1]
+            let target = cmd.args.get(1).map(|s| s.as_str()).unwrap_or("~");
+
+            let new_path = if target == "-" {
+                // cd -  ->  go to previous directory
+                if let Some(pd) = prev_dir.as_ref() {
+                    let dest = pd.clone();
+                    println!("{}", dest.display());
+                    dest
+                } else {
+                    eprintln!("cd: no previous directory");
+                    return Ok(true);
+                }
             } else {
-                "~"
+                // Resolve ~ to home directory
+                let resolved = if target.starts_with('~') {
+                    let home = env::var("HOME")
+                        .or_else(|_| env::var("USERPROFILE"))
+                        .unwrap_or_else(|_| ".".to_string());
+                    target.replacen('~', &home, 1)
+                } else {
+                    target.to_string()
+                };
+                PathBuf::from(resolved)
             };
 
-            // Handle ~
-            let path = if new_dir.starts_with('~') {
-                let home = env::var("HOME").or_else(|_| env::var("USERPROFILE")).unwrap_or_else(|_| "/".to_string());
-                new_dir.replacen('~', &home, 1)
+            // Save current dir before changing
+            let old = env::current_dir().ok();
+            if let Err(e) = env::set_current_dir(&new_path) {
+                eprintln!("cd: {}: {}", new_path.display(), e);
             } else {
-                new_dir.to_string()
-            };
-
-            let root = Path::new(&path);
-            if let Err(e) = env::set_current_dir(&root) {
-                eprintln!("cd: {}: {}", root.display(), e);
+                *prev_dir = old;
             }
             Ok(true)
         }
-        "exit" => {
+
+        // ── clear / cls ──────────────────────────────────────────────────
+        "clear" | "cls" => {
+            builtin_clear();
+            Ok(true)
+        }
+
+        // ── history ──────────────────────────────────────────────────────
+        "history" => {
+            builtin_history(history_path);
+            Ok(true)
+        }
+
+        // ── exit ─────────────────────────────────────────────────────────
+        "exit" | "quit" => {
             std::process::exit(0);
         }
+
+        // ── pwd ──────────────────────────────────────────────────────────
         "pwd" => {
             match env::current_dir() {
                 Ok(dir) => println!("{}", dir.display()),
-                Err(e) => eprintln!("pwd: {}", e),
+                Err(e)  => eprintln!("pwd: {}", e),
             }
             Ok(true)
         }
+
+        // ── export / set ─────────────────────────────────────────────────
         "export" | "set" => {
             for arg in cmd.args.iter().skip(1) {
                 if let Some(idx) = arg.find('=') {
@@ -87,78 +148,80 @@ pub fn execute_builtin(cmd: &Command) -> Result<bool, String> {
                     let val = &arg[idx + 1..];
                     unsafe { env::set_var(key, val); }
                 } else {
-                    eprintln!("export: invalid argument. Use key=value");
+                    eprintln!("export: invalid argument (expected key=value)");
                 }
             }
             Ok(true)
         }
+
+        // ── echo ─────────────────────────────────────────────────────────
+        // Native Rust echo so it works on both platforms identically.
+        "echo" => {
+            let out = cmd.args[1..].join(" ");
+            println!("{}", out);
+            Ok(true)
+        }
+
         _ => Ok(false),
     }
 }
 
-pub fn execute_pipeline(pipeline: Vec<Command>) {
+// ---------------------------------------------------------------------------
+// Execute a full pipeline (possibly backgrounded)
+// ---------------------------------------------------------------------------
+pub fn execute_pipeline(
+    pipeline: Vec<Command>,
+    prev_dir: &mut Option<PathBuf>,
+    background: bool,
+    history_path: &Path,
+) {
     if pipeline.is_empty() {
         return;
     }
 
-    // Check if it's a single builtin
+    // Single command – try builtins first (they can't be piped easily)
     if pipeline.len() == 1 {
-        match execute_builtin(&pipeline[0]) {
-            Ok(true) => return,
+        match execute_builtin(&pipeline[0], prev_dir, history_path) {
+            Ok(true)  => return,
             Ok(false) => {}
-            Err(e) => {
-                eprintln!("{}", e);
-                return;
-            }
+            Err(e)    => { eprintln!("{}", e); return; }
         }
     }
 
     let mut children: Vec<Child> = Vec::new();
     let mut previous_command_stdout: Option<Stdio> = None;
-
     let pipe_len = pipeline.len();
 
     for (i, cmd) in pipeline.iter().enumerate() {
-        // Builtins inside a pipe are not natively supported in this basic version
-        // We'll just skip builtins if they are piped for now, or you could spawn them in threads.
         if cmd.args.is_empty() {
             continue;
         }
 
         let stdin = previous_command_stdout.take().unwrap_or_else(Stdio::inherit);
-        
-        // Handle output routing
-        let stdout = if i == pipe_len - 1 {
-            // Last command routes to stdout or file
-            if let Some(ref outfile) = cmd.output_redirect {
-                let file_res = if cmd.output_append {
-                    std::fs::OpenOptions::new().create(true).append(true).open(outfile)
-                } else {
-                    File::create(outfile)
-                };
-                match file_res {
-                    Ok(f) => Stdio::from(f),
-                    Err(e) => {
-                        eprintln!("smash: {}: {}", outfile, e);
-                        break;
-                    }
-                }
+
+        // Route stdout: pipe to next command, redirect to file, or inherit terminal
+        let stdout = if i < pipe_len - 1 {
+            Stdio::piped()
+        } else if let Some(ref outfile) = cmd.output_redirect {
+            let file_res = if cmd.output_append {
+                std::fs::OpenOptions::new().create(true).append(true).open(outfile)
             } else {
-                Stdio::inherit()
+                File::create(outfile)
+            };
+            match file_res {
+                Ok(f)  => Stdio::from(f),
+                Err(e) => { eprintln!("smash: {}: {}", outfile, e); break; }
             }
         } else {
-            Stdio::piped()
+            Stdio::inherit()
         };
 
-        // Handle possible input redirection on the FIRST command
-        let actual_stdin = if i == 0 && cmd.input_redirect.is_some() {
+        // Input redirection (first command only)
+        let actual_stdin = if i == 0 {
             if let Some(ref infile) = cmd.input_redirect {
                 match File::open(infile) {
-                    Ok(f) => Stdio::from(f),
-                    Err(e) => {
-                        eprintln!("smash: {}: {}", infile, e);
-                        break;
-                    }
+                    Ok(f)  => Stdio::from(f),
+                    Err(e) => { eprintln!("smash: {}: {}", infile, e); break; }
                 }
             } else {
                 stdin
@@ -170,7 +233,8 @@ pub fn execute_pipeline(pipeline: Vec<Command>) {
         match spawn_command(&cmd.args, actual_stdin, stdout) {
             Ok(mut child) => {
                 if i < pipe_len - 1 {
-                    previous_command_stdout = Some(Stdio::from(child.stdout.take().unwrap()));
+                    // Safe: we passed Stdio::piped() for stdout, so child.stdout is Some
+                    previous_command_stdout = child.stdout.take().map(Stdio::from);
                 }
                 children.push(child);
             }
@@ -181,8 +245,14 @@ pub fn execute_pipeline(pipeline: Vec<Command>) {
         }
     }
 
-    // Wait for all children
-    for mut child in children {
-        let _ = child.wait();
+    if background {
+        // Don't wait – return control to prompt immediately
+        if !children.is_empty() {
+            println!("[background] {} process(es) running", children.len());
+        }
+    } else {
+        for mut child in children {
+            let _ = child.wait();
+        }
     }
 }

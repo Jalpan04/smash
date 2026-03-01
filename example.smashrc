@@ -1,0 +1,17 @@
+# ~/.smashrc - Smash shell configuration
+# Loaded on every startup. Lines starting with # are comments.
+
+# ── Aliases ──────────────────────────────────────────────────────────────────
+alias ll=ls -la
+alias la=ls -la
+alias gs=git status
+alias ga=git add .
+alias gc=git commit -m
+alias gp=git push origin master
+alias gl=git log --oneline
+alias py=python3
+
+# ── Environment variables ────────────────────────────────────────────────────
+# export EDITOR=vim
+# export MY_PROJECTS=$HOME/projects
+# export PATH=$PATH:$HOME/.local/bin

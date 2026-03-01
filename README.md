@@ -1,95 +1,144 @@
-# Smash (Smart Bash)
+# Smash
 
-Smash is a lightweight, efficient, and cross-platform shell built from the ground up in Rust. It integrates an embedded Natural Language processing engine to bridge the gap between human intent and shell commands.
+A cross-platform shell written in Rust with an embedded AI that translates natural language into shell commands.
 
-## Overview
+## Features
 
-Unlike traditional shell wrappers, Smash is a standalone shell implementation designed for speed and native performance on both Windows and Linux. It features a custom lexical parser and direct OS-level process management, combined with an AI translation layer powered by ONNX Runtime.
+- **AI translation** - `smash list all python files` -> runs the right command for your OS
+- **Cross-platform** - generates PowerShell on Windows, Bash on Linux automatically
+- **Persistent history** - up/down arrows across sessions (`~/.smash_history`)
+- **Tab completion** - file path completion with Tab
+- **Inline hints** - greyed suggestions as you type, accept with right arrow
+- **Aliases** - `alias ll=Get-ChildItem -Force`, persists via `~/.smashrc`
+- **Env var expansion** - `$HOME`, `$PATH`, `${MY_VAR}` expanded in all commands
+- **Background jobs** - `some_command &` returns prompt immediately
+- **Built-in commands** - `cd`, `cd -`, `pwd`, `clear`, `history`, `echo`, `export`, `alias`, `unalias`, `exit`
+- **Config file** - `~/.smashrc` loaded on startup for aliases and exports
 
-## Key Features
+## Quick Start
 
-- Native Rust implementation: High performance with no garbage collection overhead.
-- Cross-Platform support: Unified experience across Windows Powershell/CMD and Linux Bash environments.
-- AI Translation: Translate natural language queries (e.g., "list all python files") into valid shell commands instantly.
-- Embedded Inference: Runs a fine-tuned T5 model locally using ONNX Runtime, requiring no external API calls or internet connection.
-- Modern CLI Experience: Integrated line editing with syntax highlighting and history support via Reedline.
-- Native Built-ins: Efficient implementation of essential commands like cd, pwd, and exit.
+### Linux (one command)
 
-## Technical Architecture
+```bash
+curl -sSL https://raw.githubusercontent.com/Jalpan04/smash/master/install.sh | bash
+```
 
-### Core Shell
-The shell is written in Rust, leveraging:
-- Reedline: For a robust and interactive command-line interface.
-- Crossterm: For cross-platform terminal manipulation.
-- Custom Parser: Handles complex shell syntax including pipes, redirection, and quoting.
+### From source
 
-### Machine Learning Engine
-- Model Architecture: T5-Small sequence-to-sequence transformer.
-- Inference Backend: ORT (ONNX Runtime) for low-latency CPU inference.
-- Tokenization: Native Byte-Pair Encoding (BPE) integration via the Hugging Face Tokenizers library.
+```bash
+git clone https://github.com/Jalpan04/smash.git
+cd smash
+cargo build --release
+./target/release/smash
+```
 
-## Getting Started
+### Pre-built binaries
 
-### Prerequisites
-
-- Rust Toolchain (v1.93 or later)
-- Python 3.8+ (only required for model training)
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Jalpan04/smash.git
-   cd smash
-   ```
-
-2. Build the project:
-   ```bash
-   cargo build --release
-   ```
-
-3. Run the shell:
-   ```bash
-   cargo run --release
-   ```
+Download from [Releases](https://github.com/Jalpan04/smash/releases). The AI model is included in the repository via Git LFS.
 
 ## Usage
 
-Smash functions like a standard shell but introduces the `smash` command for AI assistance.
+### Regular shell commands
 
-### Standard Commands
-```bash
-smash:D:\smash> ls -la
-smash:D:\smash> cd src
-smash:D:\smash\src> pwd
+```
+smash:D:\projects> git status
+smash:D:\projects> cd src
+smash:D:\projects\src> pwd
+smash:D:\projects\src> cd -       # go back to D:\projects
 ```
 
-### AI Translation
-Prefix your query with `smash` to invoke the AI translator:
-```bash
-smash:D:\smash> smash list all files in directory
-SMASH AI SUGGESTS: ls -la
+### AI translation
 
-smash:D:\smash> smash find all python files bigger than 1mb
-SMASH AI SUGGESTS: find . -name "*.py" -size +1M
+Prefix with `smash` to translate natural language:
+
+```
+smash:~> smash list all python files
+[windows] AI suggests: Get-ChildItem -Recurse -Filter *.py
+
+smash:~> smash show free disk space
+[linux] AI suggests: df -h
+
+smash:~> smash find files modified today
+[linux] AI suggests: find . -mtime -1
 ```
 
-## Development
+### Aliases
 
-The ML pipeline is located in the `ml/` directory. If you wish to retrain or extend the translation capabilities:
+```
+alias ll                        # show alias
+alias gs=git status             # create alias
+alias deploy=cargo build --release && ./target/release/smash
+gs                              # runs: git status
+unalias gs                      # remove alias
+```
 
-1. Install requirements:
-   ```bash
-   pip install -r ml/requirements.txt
-   ```
+### Background jobs
 
-2. Run the training script:
-   ```bash
-   python ml/train_smash.py
-   ```
+```
+smash:~> ping -t google.com &
+[background] 1 process(es) running
+smash:~>                         # prompt returns immediately
+```
 
-3. The script will automatically export the optimized `smash.onnx` models for use by the Rust core.
+### Environment variables
+
+```
+smash:~> export MY_DIR=/home/user/projects
+smash:~> cd $MY_DIR
+smash:~> echo ${MY_DIR}/src
+```
+
+### History
+
+```
+smash:~> history                 # print numbered history
+smash:~>                         # press up/down to navigate
+```
+
+## Configuration: ~/.smashrc
+
+Create `~/.smashrc` to set aliases and environment variables on startup:
+
+```bash
+# ~/.smashrc - loaded by smash on every startup
+
+# Aliases
+alias ll=ls -la
+alias gs=git status
+alias gc=git commit -m
+alias gp=git push origin master
+alias py=python3
+
+# Environment variables
+export EDITOR=vim
+export MY_PROJECTS=$HOME/projects
+```
+
+## AI Model
+
+The shell ships with a fine-tuned T5-Small model (~240 MB) stored via Git LFS.
+
+| Metric | Value |
+|--------|-------|
+| Architecture | T5-Small (60M params) |
+| Inference | ONNX Runtime (CPU) |
+| ROUGE-1 | 98.51% |
+| Dataset | ~100 cross-platform command pairs |
+| Latency | ~200ms per query on CPU |
+
+To retrain:
+
+```bash
+pip install -r ml/requirements.txt
+python ml/train_smash.py --epochs 10
+```
+
+## Running Tests
+
+```bash
+cargo test --test parser_tests
+```
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache 2.0 - see [LICENSE](LICENSE).

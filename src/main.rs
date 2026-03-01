@@ -10,6 +10,7 @@ use reedline::{
 use std::collections::HashMap;
 use std::env;
 use std::borrow::Cow;
+use std::path::PathBuf;
 
 // Detect the platform at compile time
 #[cfg(target_os = "windows")]
@@ -39,13 +40,55 @@ impl reedline::Prompt for SmashPrompt {
 }
 
 // ---------------------------------------------------------------------------
-// Alias store
+// Environment variable expansion: $VAR  or  ${VAR}
+// ---------------------------------------------------------------------------
+fn expand_vars(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c != '$' {
+            result.push(c);
+            continue;
+        }
+
+        // $
+        let braced = chars.peek() == Some(&'{');
+        if braced { chars.next(); }
+
+        let mut var_name = String::new();
+        loop {
+            match chars.peek() {
+                Some(&'}') if braced => { chars.next(); break; }
+                Some(&ch) if ch.is_alphanumeric() || ch == '_' => {
+                    var_name.push(ch);
+                    chars.next();
+                }
+                _ => break,
+            }
+        }
+
+        if var_name.is_empty() {
+            result.push('$');
+            if braced { result.push('{'); }
+        } else {
+            result.push_str(&env::var(&var_name).unwrap_or_default());
+        }
+    }
+    result
+}
+
+// ---------------------------------------------------------------------------
+// Alias utilities
 // ---------------------------------------------------------------------------
 fn parse_alias_command(args: &[&str], aliases: &mut HashMap<String, String>) {
-    // alias ll="ls -la"  or  alias ll ls -la
     if args.is_empty() {
-        for (k, v) in aliases.iter() {
-            println!("alias {}='{}'", k, v);
+        if aliases.is_empty() {
+            println!("(no aliases defined)");
+        } else {
+            for (k, v) in aliases.iter() {
+                println!("alias {}='{}'", k, v);
+            }
         }
         return;
     }
@@ -53,14 +96,37 @@ fn parse_alias_command(args: &[&str], aliases: &mut HashMap<String, String>) {
     if let Some(eq) = joined.find('=') {
         let key = joined[..eq].trim().to_string();
         let val = joined[eq + 1..].trim().trim_matches('\'').trim_matches('"').to_string();
-        println!("alias {} -> '{}'", key, val);
-        aliases.insert(key, val);
-    } else {
-        // alias ll ls -la  (space-separated)
+        if key.is_empty() {
+            eprintln!("smash: alias: invalid name");
+            return;
+        }
+        aliases.insert(key.clone(), val.clone());
+        println!("alias {}='{}'", key, val);
+    } else if args.len() >= 2 {
         let key = args[0].to_string();
         let val = args[1..].join(" ");
-        println!("alias {} -> '{}'", key, val);
-        aliases.insert(key, val);
+        aliases.insert(key.clone(), val.clone());
+        println!("alias {}='{}'", key, val);
+    } else {
+        // alias foo  -> show just that alias
+        let key = args[0];
+        if let Some(val) = aliases.get(key) {
+            println!("alias {}='{}'", key, val);
+        } else {
+            eprintln!("smash: alias: {}: not found", key);
+        }
+    }
+}
+
+fn unalias_command(args: &[&str], aliases: &mut HashMap<String, String>) {
+    if args.is_empty() {
+        eprintln!("smash: unalias: usage: unalias <name>");
+        return;
+    }
+    for name in args {
+        if aliases.remove(*name).is_none() {
+            eprintln!("smash: unalias: {}: not found", name);
+        }
     }
 }
 
@@ -79,16 +145,60 @@ fn expand_aliases<'a>(input: &'a str, aliases: &HashMap<String, String>) -> Cow<
 }
 
 // ---------------------------------------------------------------------------
+// Load ~/.smashrc  (alias and export directives)
+// ---------------------------------------------------------------------------
+fn load_smashrc(aliases: &mut HashMap<String, String>) {
+    let rc_path = dirs::home_dir()
+        .map(|h| h.join(".smashrc"))
+        .unwrap_or_else(|| PathBuf::from(".smashrc"));
+
+    let content = match std::fs::read_to_string(&rc_path) {
+        Ok(c) => c,
+        Err(_) => return, // file doesn't exist, that's fine
+    };
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut parts = line.splitn(2, ' ');
+        match parts.next() {
+            Some("alias") => {
+                let rest = parts.next().unwrap_or("").trim();
+                let alias_args: Vec<&str> = rest.split_whitespace().collect();
+                // quiet – no println during rc load
+                let joined = alias_args.join(" ");
+                if let Some(eq) = joined.find('=') {
+                    let key = joined[..eq].trim().to_string();
+                    let val = joined[eq + 1..].trim().trim_matches('\'').trim_matches('"').to_string();
+                    if !key.is_empty() { aliases.insert(key, val); }
+                } else if alias_args.len() >= 2 {
+                    aliases.insert(alias_args[0].to_string(), alias_args[1..].join(" "));
+                }
+            }
+            Some("export") | Some("set") => {
+                let rest = parts.next().unwrap_or("").trim();
+                if let Some(idx) = rest.find('=') {
+                    let key = rest[..idx].trim();
+                    let val = rest[idx + 1..].trim().trim_matches('"').trim_matches('\'');
+                    unsafe { env::set_var(key, val); }
+                }
+            }
+            _ => {}
+        }
+    }
+    println!("Loaded ~/.smashrc");
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 fn main() {
     println!("Smash (Smart Bash) - running on {}", PLATFORM);
     println!("Loading AI model...");
 
-    let model_dir = match env::var("SMASH_MODEL_DIR") {
-        Ok(val) => val,
-        Err(_) => "output/onnx".to_string(),
-    };
+    let model_dir = env::var("SMASH_MODEL_DIR").unwrap_or_else(|_| "output/onnx".to_string());
 
     let mut ai = match SmashAI::new(&model_dir) {
         Ok(ai) => {
@@ -104,14 +214,13 @@ fn main() {
     // Persistent history stored at ~/.smash_history
     let history_path = dirs::home_dir()
         .map(|h| h.join(".smash_history"))
-        .unwrap_or_else(|| std::path::PathBuf::from(".smash_history"));
+        .unwrap_or_else(|| PathBuf::from(".smash_history"));
 
     let history = Box::new(
-        FileBackedHistory::with_file(1000, history_path)
+        FileBackedHistory::with_file(5000, history_path.clone())
             .expect("Could not create history file"),
     );
 
-    // File path tab completion
     let completer = Box::new(DefaultCompleter::default());
 
     let mut line_editor = Reedline::create()
@@ -122,19 +231,24 @@ fn main() {
     let prompt = SmashPrompt;
     let mut aliases: HashMap<String, String> = HashMap::new();
 
-    // Seed some common cross-platform aliases
+    // Built-in aliases (platform-specific)
     #[cfg(target_os = "windows")]
     {
-        aliases.insert("ll".to_string(),    "Get-ChildItem -Force".to_string());
-        aliases.insert("la".to_string(),    "Get-ChildItem -Force".to_string());
-        aliases.insert("cls".to_string(),   "Clear-Host".to_string());
+        aliases.insert("ll".to_string(),  "Get-ChildItem -Force".to_string());
+        aliases.insert("la".to_string(),  "Get-ChildItem -Force".to_string());
     }
     #[cfg(not(target_os = "windows"))]
     {
-        aliases.insert("ll".to_string(),  "ls -la".to_string());
-        aliases.insert("la".to_string(),  "ls -la".to_string());
+        aliases.insert("ll".to_string(),   "ls -la".to_string());
+        aliases.insert("la".to_string(),   "ls -la".to_string());
         aliases.insert("grep".to_string(), "grep --color=auto".to_string());
     }
+
+    // Load ~/.smashrc (user config) - sets aliases and env vars
+    load_smashrc(&mut aliases);
+
+    // Track previous directory for `cd -`
+    let mut prev_dir: Option<PathBuf> = None;
 
     loop {
         let sig = line_editor.read_line(&prompt);
@@ -145,21 +259,42 @@ fn main() {
                     continue;
                 }
 
-                // --- built-in: alias ---
-                let mut parts = raw.splitn(2, ' ');
-                if parts.next() == Some("alias") {
-                    let alias_args: Vec<&str> = parts
-                        .next()
-                        .unwrap_or("")
-                        .split_whitespace()
-                        .collect();
-                    parse_alias_command(&alias_args, &mut aliases);
+                // --- Detect background execution (&) ---
+                let background = raw.ends_with(" &") || raw == "&";
+                let raw = if background {
+                    raw.trim_end_matches('&').trim()
+                } else {
+                    raw
+                };
+
+                if raw.is_empty() {
                     continue;
                 }
 
-                // --- alias expansion ---
+                // --- Built-ins handled before alias expansion ---
+                let first = raw.split_whitespace().next().unwrap_or("");
+
+                if first == "alias" {
+                    let rest: Vec<&str> = raw.splitn(2, ' ')
+                        .nth(1).unwrap_or("").split_whitespace().collect();
+                    parse_alias_command(&rest, &mut aliases);
+                    continue;
+                }
+
+                if first == "unalias" {
+                    let rest: Vec<&str> = raw.splitn(2, ' ')
+                        .nth(1).unwrap_or("").split_whitespace().collect();
+                    unalias_command(&rest, &mut aliases);
+                    continue;
+                }
+
+                // --- Alias expansion ---
                 let expanded = expand_aliases(raw, &aliases);
-                let input = expanded.as_ref();
+                let after_alias = expanded.as_ref();
+
+                // --- Environment variable expansion ($VAR) ---
+                let input_owned = expand_vars(after_alias);
+                let input = input_owned.as_str();
 
                 // --- AI translation ---
                 let mut command_to_run = input.to_string();
@@ -170,6 +305,7 @@ fn main() {
                         if nl_query.is_empty() {
                             eprintln!("Usage: smash <natural language query>");
                             eprintln!("  e.g. smash list all files");
+                            continue;
                         } else {
                             match smash_ai.generate(PLATFORM, nl_query) {
                                 Ok(translated) => {
@@ -180,7 +316,7 @@ fn main() {
                             }
                         }
                     } else {
-                        // Implicit translation heuristic
+                        // Implicit translation heuristic (multi-word, no special chars)
                         let word_count = input.split_whitespace().count();
                         let looks_like_nl = word_count > 2
                             && !input.contains('/')
@@ -201,7 +337,7 @@ fn main() {
                     }
                 }
 
-                // --- Safety guard: never execute an empty command ---
+                // --- Safety guard ---
                 let command_to_run = command_to_run.trim().to_string();
                 if command_to_run.is_empty() {
                     eprintln!("smash: nothing to execute");
@@ -211,7 +347,9 @@ fn main() {
                 // --- Execute ---
                 match parser::tokenize(&command_to_run) {
                     Ok(tokens) => match parser::parse_pipeline(&tokens) {
-                        Ok(pipeline) => executor::execute_pipeline(pipeline),
+                        Ok(pipeline) => {
+                            executor::execute_pipeline(pipeline, &mut prev_dir, background, &history_path);
+                        }
                         Err(e) => eprintln!("smash: parse error: {}", e),
                     },
                     Err(e) => eprintln!("smash: tokenize error: {}", e),

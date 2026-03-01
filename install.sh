@@ -1,71 +1,91 @@
 #!/usr/bin/env bash
-# install.sh - One-command installer for Smash (Smart Bash)
-# Usage: curl -sSf https://raw.githubusercontent.com/Jalpan04/smash/master/install.sh | bash
+# install.sh - One-command Smash installer for Linux
+# Usage: curl -sSL https://raw.githubusercontent.com/Jalpan04/smash/master/install.sh | bash
 
 set -e
 
-REPO="https://github.com/Jalpan04/smash.git"
-INSTALL_DIR="$HOME/.smash"
+REPO="https://github.com/Jalpan04/smash"
+RELEASES="https://api.github.com/repos/Jalpan04/smash/releases/latest"
+INSTALL_DIR="$HOME/.local/bin"
+MODEL_DIR="$HOME/.smash/model"
+BINARY_NAME="smash-linux-x86_64"
 
-echo "=========================================="
-echo "  Smash - Smart Bash Shell Installer"
-echo "=========================================="
+echo "Installing Smash shell..."
 echo ""
 
-# Check for git
-if ! command -v git &>/dev/null; then
-    echo "Installing git..."
-    sudo apt-get install -y git || sudo yum install -y git || sudo pacman -S --noconfirm git
-fi
+# Create install dirs
+mkdir -p "$INSTALL_DIR"
+mkdir -p "$MODEL_DIR"
 
-# Check for Rust - install if missing
-if ! command -v cargo &>/dev/null; then
-    echo "Rust not found. Installing..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
-    source "$HOME/.cargo/env"
-    export PATH="$HOME/.cargo/bin:$PATH"
+# Try to grab the latest pre-built binary from GitHub Releases first
+ASSET_URL=$(curl -sSL "$RELEASES" 2>/dev/null \
+  | grep "browser_download_url" \
+  | grep "$BINARY_NAME" \
+  | cut -d '"' -f 4 \
+  | head -n 1)
+
+if [ -n "$ASSET_URL" ]; then
+    echo "Downloading pre-built binary from Releases..."
+    curl -sSL "$ASSET_URL" -o "$INSTALL_DIR/smash"
+    chmod +x "$INSTALL_DIR/smash"
+    echo "Binary installed to $INSTALL_DIR/smash"
 else
-    echo "Rust found: $(rustc --version)"
+    # Fall back to building from source
+    echo "No pre-built binary found. Building from source..."
+
+    if ! command -v cargo &>/dev/null; then
+        echo "Rust not found. Installing rustup..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+        source "$HOME/.cargo/env"
+    fi
+
+    TMP=$(mktemp -d)
+    trap "rm -rf $TMP" EXIT
+
+    git clone --depth=1 "$REPO" "$TMP/smash"
+    cd "$TMP/smash"
+    cargo build --release
+    cp target/release/smash "$INSTALL_DIR/smash"
+    cp -r output/onnx/. "$MODEL_DIR/"
+    echo "Built and installed to $INSTALL_DIR/smash"
 fi
 
-# Install git-lfs (needed to pull the ONNX model files)
-if ! command -v git-lfs &>/dev/null; then
-    echo "Installing git-lfs..."
-    sudo apt-get install -y git-lfs 2>/dev/null \
-        || sudo yum install -y git-lfs 2>/dev/null \
-        || sudo pacman -S --noconfirm git-lfs 2>/dev/null \
-        || (curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash && sudo apt-get install -y git-lfs)
+# If we installed from binary, we still need the ONNX model
+# Clone just the model files using git sparse-checkout
+if [ ! -f "$MODEL_DIR/encoder_model.onnx" ]; then
+    echo "Downloading AI model files..."
+    TMP2=$(mktemp -d)
+    trap "rm -rf $TMP2" EXIT
+    git clone --depth=1 --filter=blob:none --sparse "$REPO" "$TMP2/smash_model"
+    cd "$TMP2/smash_model"
+    git sparse-checkout set output/onnx
+    cp -r output/onnx/. "$MODEL_DIR/"
+    echo "Model installed to $MODEL_DIR"
 fi
 
-git lfs install
+# Set SMASH_MODEL_DIR so the shell can find the model
+RC_FILE="$HOME/.bashrc"
+[ -f "$HOME/.zshrc" ] && RC_FILE="$HOME/.zshrc"
 
-# Clone or update the repository
-if [ -d "$INSTALL_DIR/.git" ]; then
-    echo "Updating existing install..."
-    git -C "$INSTALL_DIR" pull
-else
-    echo "Cloning Smash..."
-    git clone "$REPO" "$INSTALL_DIR"
+EXPORT_LINE="export SMASH_MODEL_DIR=\"$MODEL_DIR\""
+if ! grep -qF "SMASH_MODEL_DIR" "$RC_FILE" 2>/dev/null; then
+    echo "" >> "$RC_FILE"
+    echo "# Smash shell model directory" >> "$RC_FILE"
+    echo "$EXPORT_LINE" >> "$RC_FILE"
+    echo "Added SMASH_MODEL_DIR to $RC_FILE"
 fi
 
-# Build the shell
+# Add ~/.local/bin to PATH if not already there
+if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
+    echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$RC_FILE"
+    echo "Added $INSTALL_DIR to PATH in $RC_FILE"
+fi
+
 echo ""
-echo "Building Smash (this may take a few minutes on the first run)..."
-cd "$INSTALL_DIR"
-"$HOME/.cargo/bin/cargo" build --release
-
-# Create a symlink in /usr/local/bin for easy access
-BINARY="$INSTALL_DIR/target/release/smash"
-if [ -f "$BINARY" ]; then
-    sudo ln -sf "$BINARY" /usr/local/bin/smash
-    echo ""
-    echo "=========================================="
-    echo "  Smash successfully installed!"
-    echo "  Run: smash"
-    echo "  AI commands: smash list all files"
-    echo "               smash show free disk space"
-    echo "=========================================="
-else
-    echo "Build failed. Please check the output above."
-    exit 1
-fi
+echo "Installation complete."
+echo ""
+echo "  Run now:   $INSTALL_DIR/smash"
+echo "  Or after:  source $RC_FILE && smash"
+echo ""
+echo "  Create ~/.smashrc to configure aliases on startup."
+echo "  See example: https://github.com/Jalpan04/smash/blob/master/example.smashrc"
