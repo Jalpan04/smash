@@ -46,7 +46,7 @@ fn main() {
 
     let ml_dir = match env::var("SMASH_MODEL_DIR") {
         Ok(val) => val,
-        Err(_) => "ml/output/onnx".to_string(),
+        Err(_) => "output/onnx".to_string(),
     };
 
     let mut ai = match SmashAI::new(&ml_dir) {

@@ -20,12 +20,12 @@ env/
 .DS_Store
 Thumbs.db
 
-# Large Files & Model Outputs
-**/output/
-*.onnx
-*.bin
-*.model
+# Large trained model checkpoints (not needed for running, only for retraining)
+**/output/trained/
+
+# Binary model weights (not ONNX - those are tracked via Git LFS and shipped)
 *.safetensors
 *.pt
 *.pth
 *.pkl
+*.bin
