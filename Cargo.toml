@@ -3,6 +3,14 @@ name = "smash"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "smash"
+path = "src/main.rs"
+
+[lib]
+name = "smash_shell"
+path = "src/lib.rs"
+
 [dependencies]
 crossterm = "0.29.0"
 dirs = "6.0.0"

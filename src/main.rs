@@ -167,12 +167,17 @@ fn main() {
                 if let Some(ref mut smash_ai) = ai {
                     if input.starts_with("smash ") {
                         let nl_query = input.trim_start_matches("smash ").trim();
-                        match smash_ai.generate(PLATFORM, nl_query) {
-                            Ok(translated) => {
-                                println!("\x1b[35m[{}] AI suggests:\x1b[0m {}", PLATFORM, translated);
-                                command_to_run = translated;
+                        if nl_query.is_empty() {
+                            eprintln!("Usage: smash <natural language query>");
+                            eprintln!("  e.g. smash list all files");
+                        } else {
+                            match smash_ai.generate(PLATFORM, nl_query) {
+                                Ok(translated) => {
+                                    println!("\x1b[35m[{}] AI suggests:\x1b[0m {}", PLATFORM, translated);
+                                    command_to_run = translated;
+                                }
+                                Err(e) => eprintln!("AI error: {}", e),
                             }
-                            Err(e) => eprintln!("AI error: {}", e),
                         }
                     } else {
                         // Implicit translation heuristic

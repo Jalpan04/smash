@@ -38,8 +38,8 @@ impl SmashAI {
         let input_text = format!("smash translate {}: {}", platform, prompt);
         let encoding = self.tokenizer.encode(input_text, true).map_err(|e| e.to_string())?;
         
-        let mut input_ids = encoding.get_ids().to_vec();
-        let mut attention_mask = encoding.get_attention_mask().to_vec();
+        let input_ids = encoding.get_ids().to_vec();
+        let attention_mask = encoding.get_attention_mask().to_vec();
 
         // T5 models exported on CPU often take int64
         let input_ids_i64: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
