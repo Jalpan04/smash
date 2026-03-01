@@ -1,39 +1,46 @@
 use std::env;
 use std::fs::File;
-use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Child, Command as ProcessCommand, Stdio};
 use crate::parser::Command;
 
-/// Attempt to spawn a command. On Windows, if the binary is not found as a
-/// standalone executable, transparently retry it through PowerShell so that
-/// cmdlets like `Get-ChildItem`, `Get-PSDrive`, etc. work out of the box.
+
+/// Spawn a command, routing through PowerShell on Windows so that both
+/// PowerShell cmdlets (Get-ChildItem, Get-PSDrive, …) and real executables
+/// (git, cargo, python, …) work without any guessing.
+///
+/// On Linux the command is spawned directly.
 fn spawn_command(
     args: &[String],
     stdin: Stdio,
     stdout: Stdio,
 ) -> std::io::Result<Child> {
-    let mut cmd = ProcessCommand::new(&args[0]);
-    cmd.args(&args[1..]);
-    cmd.stdin(stdin).stdout(stdout).stderr(Stdio::inherit());
+    if args.is_empty() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "empty command"));
+    }
 
     #[cfg(target_os = "windows")]
-    match cmd.spawn() {
-        Ok(child) => return Ok(child),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // Re-run the whole thing through PowerShell
-            let ps_cmd = args.join(" ");
-            let mut ps = ProcessCommand::new("powershell.exe");
-            ps.args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd]);
-            ps.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
-            return ps.spawn();
-        }
-        Err(e) => return Err(e),
+    {
+        // Always use PowerShell on Windows. This means cmdlets like
+        // `Get-ChildItem` and real programs like `git` both work, and
+        // the stdout Stdio value is correctly forwarded (no try-and-retry
+        // that would lose the piped handle).
+        let ps_cmd = args.join(" ");
+        let mut ps = ProcessCommand::new("powershell.exe");
+        ps.args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd]);
+        ps.stdin(stdin).stdout(stdout).stderr(Stdio::inherit());
+        return ps.spawn();
     }
 
     #[cfg(not(target_os = "windows"))]
-    cmd.spawn()
+    {
+        let mut cmd = ProcessCommand::new(&args[0]);
+        cmd.args(&args[1..]);
+        cmd.stdin(stdin).stdout(stdout).stderr(Stdio::inherit());
+        cmd.spawn()
+    }
 }
+
 
 pub fn execute_builtin(cmd: &Command) -> Result<bool, String> {
     if cmd.args.is_empty() {

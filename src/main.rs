@@ -196,6 +196,13 @@ fn main() {
                     }
                 }
 
+                // --- Safety guard: never execute an empty command ---
+                let command_to_run = command_to_run.trim().to_string();
+                if command_to_run.is_empty() {
+                    eprintln!("smash: nothing to execute");
+                    continue;
+                }
+
                 // --- Execute ---
                 match parser::tokenize(&command_to_run) {
                     Ok(tokens) => match parser::parse_pipeline(&tokens) {
