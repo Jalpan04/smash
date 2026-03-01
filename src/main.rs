@@ -79,6 +79,29 @@ fn expand_vars(input: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Detect AI output that is a PowerShell pipeline fragment (can't run alone).
+// e.g. "Where-Object {$_.Length -gt 1MB}" without a preceding command.
+// ---------------------------------------------------------------------------
+fn is_pipeline_fragment(cmd: &str) -> bool {
+    // These cmdlets are only valid after a pipe - if they appear as the
+    // very first token the AI produced a fragment, not a complete command.
+    const PIPE_ONLY: &[&str] = &[
+        "Where-Object", "where",
+        "Sort-Object",  "sort",
+        "Select-Object","select",
+        "ForEach-Object","foreach",
+        "Group-Object",
+        "Measure-Object",
+        "Format-Table", "ft",
+        "Format-List",  "fl",
+        "Out-String",
+        "Out-GridView",
+    ];
+    let first = cmd.split_whitespace().next().unwrap_or("");
+    PIPE_ONLY.iter().any(|&p| first.eq_ignore_ascii_case(p))
+}
+
+// ---------------------------------------------------------------------------
 // Alias utilities
 // ---------------------------------------------------------------------------
 fn parse_alias_command(args: &[&str], aliases: &mut HashMap<String, String>) {
@@ -300,8 +323,8 @@ fn main() {
                 let mut command_to_run = input.to_string();
 
                 if let Some(ref mut smash_ai) = ai {
-                    if input.starts_with("smash ") {
-                        let nl_query = input.trim_start_matches("smash ").trim();
+                    if input == "smash" || input.starts_with("smash ") {
+                        let nl_query = input.trim_start_matches("smash").trim();
                         if nl_query.is_empty() {
                             eprintln!("Usage: smash <natural language query>");
                             eprintln!("  e.g. smash list all files");
@@ -309,6 +332,14 @@ fn main() {
                         } else {
                             match smash_ai.generate(PLATFORM, nl_query) {
                                 Ok(translated) => {
+                                    // Reject clearly malformed AI output (pipeline fragments
+                                    // that start with a filter/sort cmdlet without a pipe)
+                                    let is_fragment = is_pipeline_fragment(&translated);
+                                    if is_fragment {
+                                        eprintln!("smash: AI could not confidently translate '{}'", nl_query);
+                                        eprintln!("       Try being more specific, e.g. 'smash list all files'");
+                                        continue;
+                                    }
                                     println!("\x1b[35m[{}] AI suggests:\x1b[0m {}", PLATFORM, translated);
                                     command_to_run = translated;
                                 }
@@ -318,7 +349,17 @@ fn main() {
                     } else {
                         // Implicit translation heuristic (multi-word, no special chars)
                         let word_count = input.split_whitespace().count();
+                        let first_word = input.split_whitespace().next().unwrap_or("");
+                        // Skip if the first token looks like a real command, not NL
+                        let looks_like_real_cmd = first_word.contains('-')
+                            || first_word == "git"
+                            || first_word == "cargo"
+                            || first_word == "python"
+                            || first_word == "pip"
+                            || first_word == "npm"
+                            || first_word == "node";
                         let looks_like_nl = word_count > 2
+                            && !looks_like_real_cmd
                             && !input.contains('/')
                             && !input.contains('\\')
                             && !input.contains('|')
@@ -328,7 +369,8 @@ fn main() {
 
                         if looks_like_nl {
                             if let Ok(translated) = smash_ai.generate(PLATFORM, input) {
-                                if translated != input && !translated.is_empty() {
+                                let is_fragment = is_pipeline_fragment(&translated);
+                                if !is_fragment && translated != input && !translated.is_empty() {
                                     println!("\x1b[35m[{}] AI translated:\x1b[0m {}", PLATFORM, translated);
                                     command_to_run = translated;
                                 }
