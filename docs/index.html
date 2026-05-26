@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <title>Smash Shell — Autonomous AI-Powered Command Line Shell</title>
+    <meta name="description" content="A cross-platform shell written in Rust with an embedded, offline T5 AI model that translates natural language into native shell commands automatically.">
+    <meta name="keywords" content="Rust shell, AI terminal, Natural language bash, T5 ONNX shell, smash shell, cross platform terminal">
+    <meta name="author" content="Jalpan04">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Smash Shell — Autonomous AI-Powered Command Line Shell">
+    <meta property="og:description" content="A cross-platform shell written in Rust with an embedded, offline T5 AI model that translates natural language into native shell commands automatically.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/Jalpan04/smash/master/output/onnx/tokenizer.json"> <!-- Placeholder/fallback or clean logo -->
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="retro-dark">
+
+    <!-- Scanline & Noise CRT Overlays -->
+    <div class="crt-overlay"></div>
+    <div class="grain-overlay"></div>
+
+    <div class="site-container">
+        
+        <!-- Grid Header -->
+        <header class="grid-header">
+            <div class="grid-cell logo-cell">
+                <h1 class="logo-title">SMASH<br><span class="logo-subtitle">SHELL</span></h1>
+            </div>
+            <div class="grid-cell nav-cell">
+                <a href="https://github.com/Jalpan04/smash" target="_blank" class="nav-link" id="github-link">
+                    <span>GITHUB ↗</span>
+                </a>
+            </div>
+            <div class="grid-cell nav-cell">
+                <a href="#install" class="nav-link">
+                    <span>INSTALL</span>
+                </a>
+            </div>
+            <div class="grid-cell nav-cell">
+                <a href="#features" class="nav-link">
+                    <span>FEATURES</span>
+                </a>
+            </div>
+            <div class="grid-cell status-cell">
+                <div class="status-indicator">
+                    <span class="status-dot pulsing"></span>
+                    <span class="status-text">v0.4.2 LIVE</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Hero Grid -->
+        <section class="grid-hero">
+            <div class="grid-cell hero-left">
+                <div class="badge">OPEN SOURCE • MIT LICENSE</div>
+                <h2 class="hero-title">THE SHELL THAT<br><span class="highlight">TRANSLATES</span> YOUR MIND.</h2>
+                <p class="hero-desc">
+                    Not a wrapper around premium web APIs. A highly-optimized, cross-platform terminal shell in Rust with an embedded fine-tuned T5-small model running entirely offline on your CPU via ONNX Runtime.
+                </p>
+            </div>
+            
+            <div class="grid-cell hero-right">
+                <!-- Installer Block 1 (Linux) -->
+                <div class="install-card">
+                    <div class="card-header">
+                        <span class="step-num">01</span>
+                        <span class="step-title">LINUX INSTALL</span>
+                    </div>
+                    <div class="code-box">
+                        <code id="cmd-linux">curl -sSL https://raw.githubusercontent.com/Jalpan04/smash/master/install.sh | bash</code>
+                        <button class="copy-btn" onclick="copyText('cmd-linux', this)" id="btn-copy-linux">COPY</button>
+                    </div>
+                </div>
+
+                <!-- Installer Block 2 (Windows) -->
+                <div class="install-card">
+                    <div class="card-header">
+                        <span class="step-num">02</span>
+                        <span class="step-title">WINDOWS (POWERSHELL)</span>
+                    </div>
+                    <div class="code-box">
+                        <code id="cmd-windows">irm https://raw.githubusercontent.com/Jalpan04/smash/master/install.ps1 | iex</code>
+                        <button class="copy-btn" onclick="copyText('cmd-windows', this)" id="btn-copy-windows">COPY</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Demo Grid -->
+        <section class="grid-demo" id="install">
+            <div class="grid-cell demo-title-cell">
+                <span class="font-expanded">SEE IT IN ACTION</span>
+            </div>
+            <div class="grid-cell demo-terminal-cell">
+                <div class="terminal-mockup">
+                    <div class="terminal-header">
+                        <div class="window-dots">
+                            <span class="dot close"></span>
+                            <span class="dot minimize"></span>
+                            <span class="dot maximize"></span>
+                        </div>
+                        <span class="terminal-title">SMASH INTERACTIVE EMULATOR</span>
+                    </div>
+                    <div class="terminal-body" id="terminal-screen">
+                        <!-- Content generated dynamically by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Grid -->
+        <section class="grid-features" id="features">
+            <div class="grid-cell section-header">
+                <h3 class="section-title">CORE ADVANTAGES</h3>
+            </div>
+            <div class="features-container col-span-full">
+                <div class="feature-card">
+                    <h4 class="feature-title">AI Translation</h4>
+                    <p class="feature-desc">Translate plain English into code: `smash list all python files` immediately runs the right command for your host OS.</p>
+                </div>
+                <div class="feature-card">
+                    <h4 class="feature-title">True Offline Inference</h4>
+                    <p class="feature-desc">Embedded fine-tuned T5-small model (~240 MB) running locally on your CPU. No API keys, no network calls, and sub-200ms latency.</p>
+                </div>
+                <div class="feature-card">
+                    <h4 class="feature-title">GLIBC Backward Compatibility</h4>
+                    <p class="feature-desc">Built with custom FFI shims targeting legacy standard C libraries, allowing static ONNX compilation to run flawlessly on Ubuntu 20.04+.</p>
+                </div>
+                <div class="feature-card">
+                    <h4 class="feature-title">Smart Model Loading</h4>
+                    <p class="feature-desc">Zero configuration. Smash automatically auto-detects and loads your local model directly from `~/.smash/model` without shell profile dependencies.</p>
+                </div>
+                <div class="feature-card">
+                    <h4 class="feature-title">Full Shell Capability</h4>
+                    <p class="feature-desc">Tab completion, persistent history, cross-platform aliases, environment variable expansion, and background processes.</p>
+                </div>
+                <div class="feature-card">
+                    <h4 class="feature-title">Pure Rust Core</h4>
+                    <p class="feature-desc">Engineered for extreme performance, minimal resource usage, and compile-time memory safety guarantees.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tech Spec & Architecture Grid -->
+        <section class="grid-specs">
+            <div class="grid-cell spec-desc-cell">
+                <h3 class="spec-section-title">UNDER THE HOOD</h3>
+                <p class="spec-para">
+                    Smash encapsulates a complex machine learning architecture into a zero-dependency system executable. During runtime, it uses the optimized Pyke ONNX system bindings to execute natural language translation on CPU threads using tokenizers and neural matrix math libraries in native speed.
+                </p>
+            </div>
+            <div class="grid-cell spec-table-cell">
+                <table class="spec-table">
+                    <thead>
+                        <tr>
+                            <th>SPECIFICATION</th>
+                            <th>VALUE / STATISTIC</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Architecture</td>
+                            <td>T5-Small (60 Million Parameters)</td>
+                        </tr>
+                        <tr>
+                            <td>Execution Engine</td>
+                            <td>ONNX Runtime CPU Integration</td>
+                        </tr>
+                        <tr>
+                            <td>Translation Latency</td>
+                            <td>~200 milliseconds per query</td>
+                        </tr>
+                        <tr>
+                            <td>Accuracy Metric</td>
+                            <td>ROUGE-1: 98.51% on evaluation set</td>
+                        </tr>
+                        <tr>
+                            <td>Compilation</td>
+                            <td>Static binary on Jammy GNU Linux / Windows MSVC</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Footer Grid -->
+        <footer class="grid-footer">
+            <div class="grid-cell footer-logo">
+                <span>SMASH SHELL © 2026</span>
+            </div>
+            <div class="grid-cell footer-license">
+                <span>MIT LICENSE</span>
+            </div>
+            <div class="grid-cell footer-author">
+                <a href="https://github.com/Jalpan04" target="_blank" class="footer-link">BY JALPAN04 ↗</a>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
