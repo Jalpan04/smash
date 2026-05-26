@@ -51,17 +51,24 @@ else
     echo "Built and installed to $INSTALL_DIR/smash"
 fi
 
-# If we installed from binary, we still need the ONNX model
-# Clone just the model files using git sparse-checkout
-if [ ! -f "$MODEL_DIR/encoder_model.onnx" ]; then
-    echo "Downloading AI model files..."
-    TMP2=$(mktemp -d)
-    trap "rm -rf $TMP2" EXIT
-    git clone --depth=1 --filter=blob:none --sparse "$REPO" "$TMP2/smash_model"
-    cd "$TMP2/smash_model"
-    git sparse-checkout set output/onnx
-    cp -r output/onnx/. "$MODEL_DIR/"
-    echo "Model installed to $MODEL_DIR"
+# Download AI model files from Releases
+if [ ! -f "$MODEL_DIR/encoder_model.onnx" ] || [ ! -f "$MODEL_DIR/decoder_model.onnx" ] || [ ! -f "$MODEL_DIR/tokenizer.json" ]; then
+    echo "Downloading AI model files from Releases..."
+    for file in "encoder_model.onnx" "decoder_model.onnx" "tokenizer.json"; do
+        echo "Downloading $file..."
+        URL=$(curl -sSL "$RELEASES" 2>/dev/null \
+          | grep "browser_download_url" \
+          | grep "$file" \
+          | cut -d '"' -f 4 \
+          | head -n 1)
+        if [ -n "$URL" ]; then
+            curl -sSL "$URL" -o "$MODEL_DIR/$file"
+        else
+            echo "Failed to get download URL for $file. Check your network."
+            exit 1
+        fi
+    done
+    echo "AI Models successfully installed to $MODEL_DIR"
 fi
 
 # Set SMASH_MODEL_DIR so the shell can find the model

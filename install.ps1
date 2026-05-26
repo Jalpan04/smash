@@ -29,19 +29,19 @@ if ($Release) {
     Exit
 }
 
-# 3. Download AI Model Files using Git Sparse-Checkout
-if (-Not (Test-Path "$ModelDir\encoder_model.onnx")) {
-    Write-Host "Downloading AI model files..."
-    $TempDir = Join-Path $env:TEMP "smash_model_temp"
-    if (Test-Path $TempDir) { Remove-Item -Recurse -Force $TempDir }
-    
-    # We require git to be installed for this step
-    git clone --depth=1 --filter=blob:none --sparse "https://github.com/$Repo" $TempDir
-    Push-Location $TempDir
-    git sparse-checkout set output/onnx
-    Pop-Location
-    Copy-Item -Path "$TempDir\output\onnx\*" -Destination $ModelDir -Recurse -Force
-    Remove-Item -Recurse -Force $TempDir
+# 3. Download AI Model Files directly from GitHub Releases
+if (-Not (Test-Path "$ModelDir\encoder_model.onnx") -Or -Not (Test-Path "$ModelDir\decoder_model.onnx") -Or -Not (Test-Path "$ModelDir\tokenizer.json")) {
+    Write-Host "Downloading AI model files from Releases..."
+    foreach ($File in @("encoder_model.onnx", "decoder_model.onnx", "tokenizer.json")) {
+        $Asset = $Release.assets | Where-Object { $_.name -eq $File }
+        if ($Asset) {
+            Write-Host "Downloading $File..."
+            Invoke-WebRequest -Uri $Asset.browser_download_url -OutFile "$ModelDir\$File"
+        } else {
+            Write-Host "Could not find $File in the latest release." -ForegroundColor Red
+            Exit
+        }
+    }
     Write-Host "AI Models installed to $ModelDir" -ForegroundColor Green
 }
 
