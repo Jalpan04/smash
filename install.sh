@@ -26,6 +26,7 @@ ASSET_URL=$(curl -sSL "$RELEASES" 2>/dev/null \
 
 if [ -n "$ASSET_URL" ]; then
     echo "Downloading pre-built binary from Releases..."
+    rm -f "$INSTALL_DIR/smash"
     curl -sSL "$ASSET_URL" -o "$INSTALL_DIR/smash"
     chmod +x "$INSTALL_DIR/smash"
     echo "Binary installed to $INSTALL_DIR/smash"
