@@ -59,7 +59,7 @@ cargo build --release
 
 ### Pre-built binaries
 
-Alternatively, you can manually download pre-built binaries from [Releases](https://github.com/Jalpan04/smash/releases). To use the AI features when downloading manually, you must clone or download the ONNX model files from this repository and set the `SMASH_MODEL_DIR` environment variable to point to their directory.
+Alternatively, you can manually download pre-built binaries from [Releases](https://github.com/Jalpan04/smash/releases). To use the AI features when downloading manually, you can also download the model files directly from the Release assets (`encoder_model.onnx`, `decoder_model.onnx`, and `tokenizer.json`) and place them in your home directory under `~/.smash/model/` (Smash will automatically locate them there!).
 
 ## Usage
 
@@ -141,7 +141,7 @@ export MY_PROJECTS=$HOME/projects
 
 ## AI Model
 
-The shell ships with a fine-tuned T5-Small model (~240 MB) stored via Git LFS.
+The shell ships with a fine-tuned T5-Small model (~240 MB) stored via Git LFS in the repository, and also distributed directly as release assets for convenient installation.
 
 | Metric | Value |
 |--------|-------|
