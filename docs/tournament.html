@@ -1,0 +1,1881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smash Shell — Coolness Factor Tournament Sandbox</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300&family=Orbitron:wght@700;900&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #0b0402;
+            --bg-card: #150906;
+            --bg-terminal: #070201;
+            --text-color: #f7e9da;
+            --text-dim: rgba(247, 233, 218, 0.6);
+            --border-color: rgba(224, 91, 56, 0.18);
+            --border-glow: rgba(224, 91, 56, 0.35);
+            --accent-color: #e05b38;
+            --accent-glow: rgba(224, 91, 56, 0.25);
+            --font-heading: 'Orbitron', sans-serif;
+            --font-body: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        /* Scanlines & Vignette overlay */
+        .vignette {
+            pointer-events: none;
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle, transparent 35%, rgba(5, 2, 1, 0.8) 100%);
+            z-index: 998;
+        }
+
+        .scanlines {
+            pointer-events: none;
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.2) 50%
+            );
+            background-size: 100% 4px;
+            z-index: 999;
+            opacity: 0.25;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-body);
+            letter-spacing: 0.02em;
+            line-height: 1.5;
+            overflow-x: hidden;
+            text-transform: uppercase;
+            padding: 3rem 1.5rem;
+            position: relative;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            border: 1px solid var(--border-color);
+            background-color: rgba(21, 9, 6, 0.3);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            position: relative;
+            z-index: 10;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            padding: 2.5rem;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(224, 91, 56, 0.03) 0%, transparent 100%);
+        }
+
+        .title-pre {
+            font-family: var(--font-mono);
+            color: var(--accent-color);
+            font-size: 0.8rem;
+            letter-spacing: 0.2em;
+            margin-bottom: 0.5rem;
+        }
+
+        h1 {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            background: linear-gradient(135deg, #ff7c4d 0%, #e05b38 60%, #a8351a 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 10px rgba(224, 91, 56, 0.3));
+        }
+
+        .subtitle {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.8rem;
+            letter-spacing: 0.15em;
+        }
+
+        /* Split-pane Layout */
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: 700px;
+        }
+
+        @media (max-width: 1024px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+            .left-panel {
+                border-right: none !important;
+                border-bottom: 1px solid var(--border-color);
+            }
+        }
+
+        .left-panel {
+            border-right: 1px solid var(--border-color);
+            padding: 2rem;
+            overflow-y: auto;
+            background-color: rgba(7, 2, 1, 0.15);
+        }
+
+        .right-panel {
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            background-color: rgba(5, 2, 1, 0.4);
+            position: relative;
+        }
+
+        /* Matchup styling */
+        .stage-title {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            color: var(--accent-color);
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stage-title span.badge {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            border: 1px solid var(--accent-color);
+            padding: 0.2rem 0.5rem;
+            color: var(--accent-color);
+        }
+
+        .match-container {
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-card);
+            border-radius: 2px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .match-container:hover {
+            border-color: var(--border-glow);
+            box-shadow: 0 0 15px rgba(224, 91, 56, 0.05);
+        }
+
+        .match-header {
+            background-color: rgba(224, 91, 56, 0.06);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1.25rem;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            letter-spacing: 0.08em;
+        }
+
+        .match-contestants {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: 100px;
+        }
+
+        .contestant {
+            padding: 1.25rem;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition: background-color 0.25s ease, color 0.25s ease;
+            position: relative;
+        }
+
+        .contestant:first-child {
+            border-right: 1px solid var(--border-color);
+        }
+
+        .contestant:hover {
+            background-color: rgba(224, 91, 56, 0.04);
+        }
+
+        .contestant.selected {
+            background-color: rgba(224, 91, 56, 0.15) !important;
+            border-color: var(--accent-color);
+        }
+
+        .contestant.selected .option-name {
+            color: var(--text-color);
+            font-weight: 700;
+        }
+
+        .option-id {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--accent-color);
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+        }
+
+        .option-name {
+            font-size: 0.95rem;
+            font-family: var(--font-heading);
+            color: var(--text-dim);
+            letter-spacing: 0.05em;
+            line-height: 1.2;
+            transition: color 0.2s ease;
+        }
+
+        .vs-divider {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-color);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Showcase Preview Card */
+        .preview-sticky {
+            position: sticky;
+            top: 2rem;
+        }
+
+        .preview-card {
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-terminal);
+            min-height: 550px;
+            display: flex;
+            flex-direction: column;
+            border-radius: 2px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+
+        .preview-header {
+            background-color: rgba(224, 91, 56, 0.03);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .preview-title {
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            color: var(--accent-color);
+            letter-spacing: 0.08em;
+        }
+
+        .preview-type {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .preview-body {
+            padding: 2rem;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            text-transform: none;
+        }
+
+        .preview-description {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--text-dim);
+            margin-bottom: 2rem;
+        }
+
+        .preview-demo-box {
+            border: 1px solid rgba(224, 91, 56, 0.15);
+            background-color: rgba(0,0,0,0.4);
+            height: 280px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+        }
+
+        .preview-placeholder {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-align: center;
+            text-transform: uppercase;
+            padding: 2rem;
+        }
+
+        /* Sound Enable Button */
+        .sound-trigger-btn {
+            background-color: rgba(224, 91, 56, 0.1);
+            border: 1px solid var(--accent-color);
+            color: var(--text-color);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.4rem 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 1rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        .sound-trigger-btn:hover {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Active Demo Visualizers */
+        canvas.demo-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #050201;
+        }
+
+        .synth-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            width: 80%;
+            z-index: 10;
+        }
+
+        .synth-btn {
+            background: rgba(224, 91, 56, 0.08);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 1rem 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            border-radius: 2px;
+        }
+
+        .synth-btn:hover {
+            background: rgba(224, 91, 56, 0.2);
+            border-color: var(--accent-color);
+        }
+
+        .crt-demo-screen {
+            width: 90%;
+            height: 80%;
+            border: 2px solid var(--border-thick);
+            background-color: #0c3311;
+            color: #4af626;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            padding: 1rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+            transition: all 0.2s ease;
+        }
+
+        .crt-demo-screen.amber-theme {
+            background-color: #331805;
+            color: #ffb834;
+            border-color: #ffb834;
+        }
+
+        .crt-demo-screen.copper-theme {
+            background-color: #2b0c03;
+            color: #ff6d3f;
+            border-color: #ff6d3f;
+        }
+
+        .crt-demo-screen.charcoal-theme {
+            background-color: #0b0d0e;
+            color: #f7e9da;
+            border-color: #f7e9da;
+        }
+
+        .crt-sliders {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 90%;
+            z-index: 10;
+            margin-top: 1rem;
+        }
+
+        .crt-slider-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+
+        .crt-slider-row input {
+            width: 60%;
+            accent-color: var(--accent-color);
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+        }
+
+        /* 3D Gear representation */
+        .gear-container {
+            perspective: 600px;
+            width: 150px;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .rust-3d-gear {
+            width: 100px;
+            height: 100px;
+            border: 8px dashed var(--accent-color);
+            border-radius: 50%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: spinGear 8s linear infinite;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .rust-3d-gear::before {
+            content: '';
+            position: absolute;
+            inset: 15px;
+            border: 4px solid var(--accent-color);
+            border-radius: 50%;
+        }
+
+        .rust-3d-gear::after {
+            content: '';
+            position: absolute;
+            inset: 32px;
+            background-color: var(--accent-color);
+            border-radius: 50%;
+        }
+
+        @keyframes spinGear {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Sandbox styling */
+        .sandbox-demo {
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            text-transform: none;
+            z-index: 10;
+        }
+
+        .sandbox-input {
+            width: 100%;
+            background: #000;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+        }
+
+        .sandbox-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .sandbox-box {
+            background-color: #050201;
+            border: 1px solid var(--border-color);
+            padding: 0.5rem;
+            min-height: 70px;
+            font-size: 0.65rem;
+        }
+
+        .sandbox-box-header {
+            color: var(--accent-color);
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+            border-bottom: 1px solid rgba(224, 91, 56, 0.1);
+            padding-bottom: 0.2rem;
+        }
+
+        /* Epoch Sim Graph */
+        .epoch-sim {
+            width: 90%;
+            height: 80%;
+            background: #000;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            z-index: 10;
+        }
+
+        .epoch-bar {
+            height: 12px;
+            background: rgba(224, 91, 56, 0.15);
+            margin: 0.25rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .epoch-progress {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            background-color: var(--accent-color);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        /* Time machine slider */
+        .tm-slider {
+            width: 90%;
+            accent-color: var(--accent-color);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Footer / Submission section */
+        .submit-section {
+            border-top: 1px solid var(--border-color);
+            padding: 2.5rem;
+            text-align: center;
+            background-color: rgba(7, 2, 1, 0.2);
+        }
+
+        .bracket-state-alert {
+            display: inline-block;
+            border: 1px solid var(--border-thick);
+            background-color: rgba(224, 91, 56, 0.03);
+            padding: 1rem 2rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent-color);
+        }
+
+        .copy-report-btn {
+            background-color: var(--accent-color);
+            border: none;
+            color: var(--bg-color);
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            font-weight: 900;
+            padding: 1rem 2.5rem;
+            cursor: pointer;
+            letter-spacing: 0.1em;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .copy-report-btn:hover:not(:disabled) {
+            background-color: #ff7c4d;
+            box-shadow: 0 0 25px rgba(224, 91, 56, 0.6);
+        }
+
+        .copy-report-btn:disabled {
+            background-color: rgba(224, 91, 56, 0.2);
+            color: rgba(247, 233, 218, 0.2);
+            box-shadow: none;
+            cursor: not-allowed;
+            border: 1px dashed var(--border-color);
+        }
+
+        .report-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.85);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            padding: 1.5rem;
+        }
+
+        .modal-content {
+            border: 1px solid var(--accent-color);
+            background-color: var(--bg-terminal);
+            max-width: 600px;
+            width: 100%;
+            padding: 2.5rem;
+            border-radius: 2px;
+            box-shadow: 0 0 40px var(--accent-glow);
+            text-transform: none;
+        }
+
+        .modal-header {
+            font-family: var(--font-heading);
+            font-size: 1.2rem;
+            color: var(--accent-color);
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .report-textarea {
+            width: 100%;
+            height: 180px;
+            background-color: rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            padding: 1rem;
+            resize: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 0.5rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-btn.primary {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            border: none;
+            font-weight: 700;
+        }
+
+        .modal-btn:hover {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .glitch-text {
+            animation: glitch 1.5s infinite steps(2);
+        }
+
+        @keyframes glitch {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-1px, -1px); opacity: 0.95; }
+            20% { transform: translate(1px, 1px); }
+            30% { transform: translate(-2px, 0); }
+            40% { transform: translate(1px, -2px); }
+        }
+
+        /* SVG Spectrograph wave line styling */
+        .spectrograph-wave {
+            stroke: var(--accent-color);
+            stroke-width: 2;
+            fill: none;
+            filter: drop-shadow(0 0 5px var(--accent-color));
+        }
+
+        .wildcard-block {
+            border: 1px dashed var(--accent-color);
+            background-color: rgba(224, 91, 56, 0.02);
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 2px;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--accent-color);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Retro CRT scanlines and Vignette -->
+    <div class="vignette"></div>
+    <div class="scanlines"></div>
+
+    <div class="container">
+        
+        <header>
+            <div class="title-pre">SMASH SHELL EXPERIMENTAL</div>
+            <h1>COOLNESS TOURNAMENT</h1>
+            <div class="subtitle">INTERACTIVE MOCK PLAYGROUND • CHOOSE THE WINNER</div>
+            <button class="sound-trigger-btn" onclick="initAudio()">ENABLE SYNTHESIS AUDIO</button>
+        </header>
+
+        <div class="workspace">
+            
+            <!-- Left Panel: Match List -->
+            <div class="left-panel">
+                
+                <div class="stage-title">
+                    <span>ROUND 1: QUARTERFINALS</span>
+                    <span class="badge">5 MATCHES</span>
+                </div>
+
+                <!-- Match 1 -->
+                <div class="match-container" id="match1">
+                    <div class="match-header">
+                        <span>MATCH 01</span>
+                        <span>NEURAL VS SYMBOLIC STREAM</span>
+                    </div>
+                    <div class="match-contestants">
+                        <div class="contestant" onclick="selectContestant(1, 'A')" id="c1-A">
+                            <span class="option-id">OPTION A</span>
+                            <span class="option-name">T5 Attention Node Visualizer</span>
+                        </div>
+                        <div class="vs-divider">VS</div>
+                        <div class="contestant" onclick="selectContestant(1, 'B')" id="c1-B">
+                            <span class="option-id">OPTION B</span>
+                            <span class="option-name">Copper Code Rain Stream</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match 2 -->
+                <div class="match-container" id="match2">
+                    <div class="match-header">
+                        <span>MATCH 02</span>
+                        <span>SOUND VS VISUAL GLITCH</span>
+                    </div>
+                    <div class="match-contestants">
+                        <div class="contestant" onclick="selectContestant(2, 'C')" id="c2-C">
+                            <span class="option-id">OPTION C</span>
+                            <span class="option-name">Sound-Reactive Synthesizer</span>
+                        </div>
+                        <div class="vs-divider">VS</div>
+                        <div class="contestant" onclick="selectContestant(2, 'D')" id="c2-D">
+                            <span class="option-id">OPTION D</span>
+                            <span class="option-name">CRT Control Panel & Glitch Suite</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match 3 -->
+                <div class="match-container" id="match3">
+                    <div class="match-header">
+                        <span>MATCH 03</span>
+                        <span>3D INERTIA VS PLAYGROUND</span>
+                    </div>
+                    <div class="match-contestants">
+                        <div class="contestant" onclick="selectContestant(3, 'E')" id="c3-E">
+                            <span class="option-id">OPTION E</span>
+                            <span class="option-name">3D Gyroscopic Rust Gear Core</span>
+                        </div>
+                        <div class="vs-divider">VS</div>
+                        <div class="contestant" onclick="selectContestant(3, 'F')" id="c3-F">
+                            <span class="option-id">OPTION F</span>
+                            <span class="option-name">Comparative Shell Sandbox</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match 4 -->
+                <div class="match-container" id="match4">
+                    <div class="match-header">
+                        <span>MATCH 04</span>
+                        <span>EPOC SIM VS TIME MACHINE</span>
+                    </div>
+                    <div class="match-contestants">
+                        <div class="contestant" onclick="selectContestant(4, 'G')" id="c4-G">
+                            <span class="option-id">OPTION G</span>
+                            <span class="option-name">T5 Epoch Training Simulator</span>
+                        </div>
+                        <div class="vs-divider">VS</div>
+                        <div class="contestant" onclick="selectContestant(4, 'H')" id="c4-H">
+                            <span class="option-id">OPTION H</span>
+                            <span class="option-name">Shell History Time Machine</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match 5 -->
+                <div class="match-container" id="match5">
+                    <div class="match-header">
+                        <span>MATCH 05</span>
+                        <span>RETRO SHELL VS DECK SWITCHER</span>
+                    </div>
+                    <div class="match-contestants">
+                        <div class="contestant" onclick="selectContestant(5, 'I')" id="c5-I">
+                            <span class="option-id">OPTION I</span>
+                            <span class="option-name">SSH Console Connection Lobby</span>
+                        </div>
+                        <div class="vs-divider">VS</div>
+                        <div class="contestant" onclick="selectContestant(5, 'J')" id="c5-J">
+                            <span class="option-id">OPTION J</span>
+                            <span class="option-name">Retro Terminal Deck Switcher</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wildcard-block" id="wildcard-note">
+                    NOTE: Match 5 winner advances to the finals directly as the lucky wildcard!
+                </div>
+
+                <!-- Round 2 Semi-Finals -->
+                <div id="semi-finals-section" style="display: none;">
+                    <div class="stage-title">
+                        <span>ROUND 2: SEMI-FINALS</span>
+                        <span class="badge">2 MATCHES</span>
+                    </div>
+
+                    <!-- Semi Match 1 -->
+                    <div class="match-container" id="semimatch1">
+                        <div class="match-header">
+                            <span>SEMI MATCH 01</span>
+                            <span>WINNER 1 VS WINNER 2</span>
+                        </div>
+                        <div class="match-contestants">
+                            <div class="contestant" onclick="selectSemiContestant(1, 'left')" id="s1-left">
+                                <span class="option-id">WINNER MATCH 1</span>
+                                <span class="option-name" id="s1-left-name">Pending</span>
+                            </div>
+                            <div class="vs-divider">VS</div>
+                            <div class="contestant" onclick="selectSemiContestant(1, 'right')" id="s1-right">
+                                <span class="option-id">WINNER MATCH 2</span>
+                                <span class="option-name" id="s1-right-name">Pending</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Semi Match 2 -->
+                    <div class="match-container" id="semimatch2">
+                        <div class="match-header">
+                            <span>SEMI MATCH 02</span>
+                            <span>WINNER 3 VS WINNER 4</span>
+                        </div>
+                        <div class="match-contestants">
+                            <div class="contestant" onclick="selectSemiContestant(2, 'left')" id="s2-left">
+                                <span class="option-id">WINNER MATCH 3</span>
+                                <span class="option-name" id="s2-left-name">Pending</span>
+                            </div>
+                            <div class="vs-divider">VS</div>
+                            <div class="contestant" onclick="selectSemiContestant(2, 'right')" id="s2-right">
+                                <span class="option-id">WINNER MATCH 4</span>
+                                <span class="option-name" id="s2-right-name">Pending</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grand Finals -->
+                <div id="grand-finals-section" style="display: none;">
+                    <div class="stage-title">
+                        <span>GRAND FINALS</span>
+                        <span class="badge">3-WAY BATTLE</span>
+                    </div>
+
+                    <div class="match-container" id="grandmatch">
+                        <div class="match-header">
+                            <span>FINAL DECK CHAMPIONSHIP</span>
+                            <span>SELECT THE SUPREME WINNER</span>
+                        </div>
+                        <div class="match-contestants" style="grid-template-columns: repeat(3, 1fr);">
+                            <div class="contestant" onclick="selectGrandContestant('left')" id="g-left">
+                                <span class="option-id">SEMI 1 CHAMP</span>
+                                <span class="option-name" id="g-left-name">Pending</span>
+                            </div>
+                            <div class="contestant" onclick="selectGrandContestant('right')" id="g-right" style="border-right: 1px solid var(--border-color);">
+                                <span class="option-id">SEMI 2 CHAMP</span>
+                                <span class="option-name" id="g-right-name">Pending</span>
+                            </div>
+                            <div class="contestant" onclick="selectGrandContestant('wildcard')" id="g-wildcard">
+                                <span class="option-id">WILDCARD</span>
+                                <span class="option-name" id="g-wildcard-name">Pending</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Panel: Showcase Previews -->
+            <div class="right-panel">
+                <div class="preview-sticky">
+                    <div class="preview-card" id="showcase-card">
+                        <div class="preview-header">
+                            <span class="preview-title" id="showcase-title">SELECT AN OPTION TO TEST</span>
+                            <span class="preview-type" id="showcase-type">PREVIEW BAY</span>
+                        </div>
+                        <div class="preview-body">
+                            <div class="preview-description" id="showcase-desc">
+                                Click on any feature option in the bracket grid on the left panel to inspect its interactive micro-simulation, detailed functional behavior, and visual representation.
+                            </div>
+                            <div class="preview-demo-box" id="showcase-demo">
+                                <div class="preview-placeholder" id="demo-placeholder-text">
+                                    Awaiting interface selection.<br>Interactive demo will load here instantly.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Submit report block -->
+        <div class="submit-section">
+            <div class="bracket-state-alert" id="bracket-status-text">
+                PLEASE COMPLETE ALL ROUND-1 VOTES TO UNLOCK SEMI-FINALS
+            </div>
+            <br>
+            <button class="copy-report-btn" id="submit-bracket-btn" disabled onclick="openReportModal()">
+                GENERATE TOURNAMENT REPORT
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Modal for report copying -->
+    <div class="report-modal" id="reportModal">
+        <div class="modal-content">
+            <div class="modal-header">TOURNAMENT SELECTION COMPLETED</div>
+            <p style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-dim);">
+                Copy the compiled tournament bracket report below and paste it directly back to the terminal companion to initiate implementation:
+            </p>
+            <textarea class="report-textarea" id="reportContent" readonly></textarea>
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="closeReportModal()">CLOSE</button>
+                <button class="modal-btn primary" onclick="copyReportText()">COPY TO CLIPBOARD</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript logic -->
+    <script>
+        // Data structure for the options
+        const optionDetails = {
+            'A': {
+                name: 'T5 Attention Node Visualizer',
+                type: 'CANVAS / NEURAL',
+                desc: 'Spawns an interactive physical network representing transformer heads. Moving the mouse across this deck acts as simulated tokens, shooting signal pulses, scaling synapse thickness, and generating beautiful coppery vector connection fields.',
+                init: function(container) {
+                    container.innerHTML = '<canvas id="node-canvas" class="demo-canvas"></canvas>';
+                    initNodeDemo();
+                }
+            },
+            'B': {
+                name: 'Copper Code Rain Stream',
+                type: 'CANVAS / RETRO EFFECT',
+                desc: 'Generates a falling matrix cascade rendered in deep copper, gold-red, and charcoal. The falling symbols consist of standard Rust language constructs (e.g. fn, impl, mut, unsafe, match, Option, Result) and hexadecimal pointers, drawing high-tech background overlays.',
+                init: function(container) {
+                    container.innerHTML = '<canvas id="rain-canvas" class="demo-canvas"></canvas>';
+                    initRainDemo();
+                }
+            },
+            'C': {
+                name: 'Sound-Reactive Synthesizer',
+                type: 'WEB AUDIO / UI SFX',
+                desc: 'Translates terminal keystrokes into procedural digital sound effects using oscillators and envelope builders. Features clickable sound buttons that trigger distinct retro-sci-fi terminal sounds, rendered together with a live vector spectrograph wave.',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="synth-grid">
+                            <button class="synth-btn" onclick="triggerTone(440, 'sine', 0.15)">CHIRP</button>
+                            <button class="synth-btn" onclick="triggerTone(150, 'triangle', 0.2)">CLICK</button>
+                            <button class="synth-btn" onclick="triggerTone(880, 'square', 0.08)">AI SUGGEST</button>
+                            <button class="synth-btn" onclick="triggerComplexTone()">NEURAL SCAN</button>
+                            <button class="synth-btn" onclick="triggerTone(100, 'sawtooth', 0.3)">ERROR HUM</button>
+                            <button class="synth-btn" onclick="triggerArpeggio()">ARPEGGIATOR</button>
+                        </div>
+                        <svg style="position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; pointer-events: none;">
+                            <path class="spectrograph-wave" d="M 0 40 Q 50 10 100 40 T 200 40 T 300 40 T 400 40 Z" id="wavepath" />
+                        </svg>
+                    `;
+                    animateWave();
+                }
+            },
+            'D': {
+                name: 'CRT Control Panel & Glitch Suite',
+                type: 'CSS TRANSFORMS / INTERACTIVE FILTER',
+                desc: 'Creates an interactive diagnostic sub-deck where you can toggle retro terminal configurations. Drag sliders to adjust simulated CRT curvature, overlay scanline density, text jitter, and color profile templates in real-time.',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="crt-demo-screen" id="demo-crt-screen">
+                            <div class="glitch-text">smash_shell: D:\\projects> git status<br>ON BRANCH master<br>WORKING TREE CLEAN<br><br>[SYSTEM HEALTH: NOMINAL]</div>
+                        </div>
+                        <div class="crt-sliders">
+                            <div class="crt-slider-row">
+                                <span>THEME</span>
+                                <select onchange="changeCrtTheme(this.value)" style="background:#000; color:var(--text-color); border:1px solid var(--border-color); font-family:var(--font-mono); font-size:0.65rem; padding:0.1rem 0.3rem;">
+                                    <option value="green">RETRO PHOSPHOR GREEN</option>
+                                    <option value="amber">VINTAGE AMBER</option>
+                                    <option value="copper">CYBERNETIC COPPER</option>
+                                    <option value="charcoal">SPACE CHARCOAL</option>
+                                </select>
+                            </div>
+                            <div class="crt-slider-row">
+                                <span>WARP (CURVE)</span>
+                                <input type="range" min="0" max="20" value="5" oninput="warpCrt(this.value)">
+                            </div>
+                            <div class="crt-slider-row">
+                                <span>GLITCH SHAKE</span>
+                                <input type="range" min="0" max="10" value="2" oninput="shakeCrt(this.value)">
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+            'E': {
+                name: '3D Gyroscopic Rust Gear Core',
+                type: 'CSS 3D / SVG INERTIA',
+                desc: 'A gorgeous mechanical machine core rendering that revolves dynamically relative to your viewport mouse movement. Features reactive spinning pipelines and generates flying glowing copper particles whenever clicked.',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="gear-container" id="gear-box">
+                            <div class="rust-3d-gear" id="gear-wheel"></div>
+                        </div>
+                    `;
+                    initGearDemo();
+                }
+            },
+            'F': {
+                name: 'Comparative Shell Sandbox',
+                type: 'JS STRING / DYNAMIC UI',
+                desc: 'A live comparative system translator. Select input statements or type custom values to watch the sandbox instantaneously render the correct Bash syntax (Linux) side-by-side with PowerShell command structures (Windows).',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="sandbox-demo">
+                            <span>SELECT SAMPLE SENTENCE:</span>
+                            <select onchange="updateSandbox(this.value)" style="background:#000; color:var(--text-color); border:1px solid var(--border-color); font-family:var(--font-mono); font-size:0.68rem; padding:0.2rem; width:100%;">
+                                <option value="0">list all python files recursively</option>
+                                <option value="1">show free system disk space</option>
+                                <option value="2">find files modified in the last 24 hours</option>
+                                <option value="3">terminate process listening on port 8080</option>
+                            </select>
+                            <div class="sandbox-split">
+                                <div class="sandbox-box">
+                                    <div class="sandbox-box-header">LINUX (BASH)</div>
+                                    <div id="sandbox-bash" style="color:#ffb834; font-size:0.6rem;">Get-ChildItem -Recurse...</div>
+                                </div>
+                                <div class="sandbox-box">
+                                    <div class="sandbox-box-header">WINDOWS (POWERSHELL)</div>
+                                    <div id="sandbox-powershell" style="color:#4af626; font-size:0.6rem;">find . -name "*.py"</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    updateSandbox("0");
+                }
+            },
+            'G': {
+                name: 'T5 Epoch Training Simulator',
+                type: 'CANVAS / MATH PROGRESS',
+                desc: 'A visualizer portraying the training logs of the T5 model. Shows active graphs detailing accuracy metrics ascending, losses plunging over successive epochs, and generates real-time telemetry output.',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="epoch-sim">
+                            <div id="epoch-log" style="height:120px; overflow-y:auto; font-size:0.58rem; color:var(--text-dim); margin-bottom:0.5rem; white-space:pre-line;">CLICK 'RUN SIMULATION' TO INITIATE MOCK TRAINING</div>
+                            <div>TRAINING EPOCH PROGRESS:</div>
+                            <div class="epoch-bar"><div class="epoch-progress" id="epoch-progress-bar"></div></div>
+                            <div style="display:flex; justify-content:space-between; margin-top:0.25rem;">
+                                <span>ROUGE-1 ACCURACY: <span id="epoch-acc" style="color:#4af626;">0.00%</span></span>
+                                <span>TRAINING LOSS: <span id="epoch-loss" style="color:#e05b38;">2.41</span></span>
+                            </div>
+                            <button onclick="startTrainingSim()" style="background:rgba(224,91,56,0.1); border:1px solid var(--accent-color); color:#fff; font-family:var(--font-mono); font-size:0.65rem; padding:0.3rem; margin-top:0.5rem; cursor:pointer;">RUN SIMULATION</button>
+                        </div>
+                    `;
+                }
+            },
+            'H': {
+                name: 'Shell History Time Machine',
+                type: 'INTERACTIVE HISTORY DIAL',
+                desc: 'A timeline-based history machine. Drag the sliding handle to move back through computing history, changing the virtual computer screen to match fonts and prompts from early Unix terminals (1969), old MS-DOS systems (1981), early Linux (1991), and modern Smash shell (2026).',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="crt-demo-screen" id="history-crt" style="background:#050201; color:#00ffcc; border-color:#00ffcc; height:70%;">
+                            <div id="history-prompt">YEAR: 2026<br>SYSTEM: SMASH COGNITIVE SHELL<br><br>smash:~> smash list python files<br>[suggest] Get-ChildItem -Filter *.py</div>
+                        </div>
+                        <div style="width:90%; margin-top:0.8rem; display:flex; flex-direction:column; gap:0.25rem;">
+                            <input type="range" class="tm-slider" min="0" max="3" value="3" oninput="shiftTime(this.value)">
+                            <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.58rem; color:var(--text-dim);">
+                                <span>1969</span>
+                                <span>1981</span>
+                                <span>1991</span>
+                                <span>2026</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+            'I': {
+                name: 'SSH Console Connection Lobby',
+                type: 'EMULATED SUB-SHELL / LOGIC',
+                desc: 'A fully interactive command prompt simulator allowing a simulated SSH pipeline loop. Connection establishes a sandboxed virtual node where you can execute primitive instructions to uncover hidden system text blocks.',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="crt-demo-screen" id="ssh-terminal-screen" style="height:80%; text-transform:none; overflow-y:auto; text-shadow:none; background:#000;">
+                            <div>========================================</div>
+                            <div>SMASH VIRTUAL SSH TERMINAL OVERLAY</div>
+                            <div>========================================</div>
+                            <div>TYPE 'help' TO DISCOVER SYSTEM CAPABILITIES.</div>
+                            <div id="ssh-history"></div>
+                            <div style="display:flex;">
+                                <span>guest@smash:~$ &nbsp;</span>
+                                <input type="text" id="ssh-cmd-input" onkeydown="handleSshInput(event)" style="background:transparent; border:none; color:#4af626; font-family:var(--font-mono); font-size:0.72rem; outline:none; flex-grow:1;">
+                            </div>
+                        </div>
+                    `;
+                    setTimeout(() => { document.getElementById("ssh-cmd-input").focus(); }, 100);
+                }
+            },
+            'J': {
+                name: 'Retro Terminal Deck Switcher',
+                type: 'STYLESHEET MODIFIER',
+                desc: 'Overhauls the entire aesthetics of this interface. Select different display modes to seamlessly morph ambient glows, system line boundaries, typography weights, and terminal scanline properties.',
+                init: function(container) {
+                    container.innerHTML = `
+                        <div class="synth-grid" style="width:90%;">
+                            <button class="synth-btn" onclick="toggleMainTheme('copper')">CYBER COPPER</button>
+                            <button class="synth-btn" onclick="toggleMainTheme('green')">PHOSPHOR GREEN</button>
+                            <button class="synth-btn" onclick="toggleMainTheme('amber')">RETRO AMBER</button>
+                            <button class="synth-btn" onclick="toggleMainTheme('charcoal')">SPACE CHARCOAL</button>
+                        </div>
+                    `;
+                }
+            }
+        };
+
+        // Current user votes
+        let round1Votes = {
+            1: null, // A or B
+            2: null, // C or D
+            3: null, // E or F
+            4: null, // G or H
+            5: null  // I or J
+        };
+
+        let semiVotes = {
+            1: null, // left or right
+            2: null  // left or right
+        };
+
+        let grandWinner = null; // left, right, or wildcard
+
+        // Web Audio global
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const btn = document.querySelector(".sound-trigger-btn");
+                btn.textContent = "SYNTHESIS AUDIO ACTIVE";
+                btn.style.borderColor = "#4af626";
+                btn.style.color = "#4af626";
+                triggerTone(523.25, 'sine', 0.15); // play nice C5 chime on activation
+                setTimeout(() => triggerTone(659.25, 'sine', 0.15), 100);
+                setTimeout(() => triggerTone(783.99, 'sine', 0.25), 200);
+            }
+        }
+
+        function triggerTone(frequency, type, duration) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e){}
+        }
+
+        function triggerComplexTone() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            triggerTone(220, 'sawtooth', 0.1);
+            setTimeout(() => triggerTone(330, 'triangle', 0.1), 80);
+            setTimeout(() => triggerTone(440, 'sine', 0.15), 160);
+            setTimeout(() => triggerTone(660, 'sine', 0.2), 240);
+        }
+
+        function triggerArpeggio() {
+            if (!audioCtx) return;
+            const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99];
+            notes.forEach((freq, index) => {
+                setTimeout(() => {
+                    triggerTone(freq, 'sine', 0.2);
+                }, index * 80);
+            });
+        }
+
+        // Selection process handler
+        function selectContestant(matchNum, optionLetter) {
+            triggerTone(300, 'triangle', 0.08);
+            
+            // Highlight element visually
+            const parent = document.getElementById("match" + matchNum);
+            parent.querySelectorAll(".contestant").forEach(el => el.classList.remove("selected"));
+            
+            document.getElementById("c" + matchNum + "-" + optionLetter).classList.add("selected");
+            
+            round1Votes[matchNum] = optionLetter;
+            
+            // Show details in preview pane
+            showPreview(optionLetter);
+            
+            checkRound1Complete();
+        }
+
+        function showPreview(optionLetter) {
+            const data = optionDetails[optionLetter];
+            if (!data) return;
+
+            document.getElementById("showcase-title").textContent = optionLetter + ": " + data.name;
+            document.getElementById("showcase-type").textContent = data.type;
+            document.getElementById("showcase-desc").textContent = data.desc;
+            
+            const demoBox = document.getElementById("showcase-demo");
+            demoBox.innerHTML = ""; // Clear existing demo
+            
+            // Stop any ongoing canvas animations by refreshing canvases
+            data.init(demoBox);
+        }
+
+        function checkRound1Complete() {
+            const allSelected = Object.values(round1Votes).every(val => val !== null);
+            if (allSelected) {
+                document.getElementById("bracket-status-text").textContent = "ROUND-1 COMPLETED. UNLOCKING SEMI-FINALS.";
+                document.getElementById("bracket-status-text").style.color = "#4af626";
+                document.getElementById("bracket-status-text").style.borderColor = "#4af626";
+                
+                // Populate Semi-Final options
+                document.getElementById("s1-left-name").textContent = optionDetails[round1Votes[1]].name;
+                document.getElementById("s1-left").setAttribute("onclick", `selectSemiContestant(1, 'left', '${round1Votes[1]}')`);
+                document.getElementById("s1-left").className = "contestant"; // reset selected states
+                
+                document.getElementById("s1-right-name").textContent = optionDetails[round1Votes[2]].name;
+                document.getElementById("s1-right").setAttribute("onclick", `selectSemiContestant(1, 'right', '${round1Votes[2]}')`);
+                document.getElementById("s1-right").className = "contestant";
+
+                document.getElementById("s2-left-name").textContent = optionDetails[round1Votes[3]].name;
+                document.getElementById("s2-left").setAttribute("onclick", `selectSemiContestant(2, 'left', '${round1Votes[3]}')`);
+                document.getElementById("s2-left").className = "contestant";
+
+                document.getElementById("s2-right-name").textContent = optionDetails[round1Votes[4]].name;
+                document.getElementById("s2-right").setAttribute("onclick", `selectSemiContestant(2, 'right', '${round1Votes[4]}')`);
+                document.getElementById("s2-right").className = "contestant";
+
+                document.getElementById("semi-finals-section").style.display = "block";
+                document.getElementById("semi-finals-section").scrollIntoView({ behavior: 'smooth' });
+                
+                triggerTone(600, 'sine', 0.25);
+            }
+        }
+
+        function selectSemiContestant(matchNum, side, originalOptionCode) {
+            triggerTone(350, 'triangle', 0.08);
+            
+            const parent = document.getElementById("semimatch" + matchNum);
+            parent.querySelectorAll(".contestant").forEach(el => el.classList.remove("selected"));
+            
+            document.getElementById("s" + matchNum + "-" + side).classList.add("selected");
+            
+            semiVotes[matchNum] = {
+                side: side,
+                option: originalOptionCode
+            };
+
+            showPreview(originalOptionCode);
+            checkSemiComplete();
+        }
+
+        function checkSemiComplete() {
+            const allSemiComplete = Object.values(semiVotes).every(val => val !== null);
+            if (allSemiComplete) {
+                document.getElementById("bracket-status-text").textContent = "SEMI-FINALS COMPLETED. UNLOCKING 3-WAY CHAMPIONSHIP BATTLE.";
+                
+                // Populate Grand Finals (Semi 1 champ, Semi 2 champ, Wildcard match 5 winner)
+                const s1ChampCode = semiVotes[1].option;
+                const s2ChampCode = semiVotes[2].option;
+                const wildcardCode = round1Votes[5];
+
+                document.getElementById("g-left-name").textContent = optionDetails[s1ChampCode].name;
+                document.getElementById("g-left").setAttribute("onclick", `selectGrandContestant('left', '${s1ChampCode}')`);
+                document.getElementById("g-left").className = "contestant";
+
+                document.getElementById("g-right-name").textContent = optionDetails[s2ChampCode].name;
+                document.getElementById("g-right").setAttribute("onclick", `selectGrandContestant('right', '${s2ChampCode}')`);
+                document.getElementById("g-right").className = "contestant";
+
+                document.getElementById("g-wildcard-name").textContent = optionDetails[wildcardCode].name;
+                document.getElementById("g-wildcard").setAttribute("onclick", `selectGrandContestant('wildcard', '${wildcardCode}')`);
+                document.getElementById("g-wildcard").className = "contestant";
+
+                document.getElementById("grand-finals-section").style.display = "block";
+                document.getElementById("grand-finals-section").scrollIntoView({ behavior: 'smooth' });
+                
+                triggerTone(700, 'sine', 0.3);
+            }
+        }
+
+        function selectGrandContestant(position, originalOptionCode) {
+            triggerTone(450, 'sine', 0.1);
+            
+            const parent = document.getElementById("grandmatch");
+            parent.querySelectorAll(".contestant").forEach(el => el.classList.remove("selected"));
+            
+            document.getElementById("g" + "-" + position).classList.add("selected");
+            
+            grandWinner = {
+                position: position,
+                option: originalOptionCode
+            };
+
+            showPreview(originalOptionCode);
+
+            // Enable final report submission
+            document.getElementById("bracket-status-text").textContent = "TOURNAMENT CHAMPION CROWNED! GENERATE FINAL IMPLEMENTATION REPORT.";
+            document.getElementById("submit-bracket-btn").disabled = false;
+        }
+
+        // Generate tournament report
+        function openReportModal() {
+            triggerTone(800, 'sine', 0.15);
+            
+            const match1Win = round1Votes[1];
+            const match2Win = round1Votes[2];
+            const match3Win = round1Votes[3];
+            const match4Win = round1Votes[4];
+            const match5Win = round1Votes[5];
+
+            const semi1Win = semiVotes[1].option;
+            const semi2Win = semiVotes[2].option;
+
+            const finalWinner = grandWinner.option;
+
+            const report = 
+`=== SMASH COOLNESS TOURNAMENT SELECTION REPORT ===
+ROUND 1 BRACKET WINNERS:
+- Match 01: [Option ${match1Win}] ${optionDetails[match1Win].name}
+- Match 02: [Option ${match2Win}] ${optionDetails[match2Win].name}
+- Match 03: [Option ${match3Win}] ${optionDetails[match3Win].name}
+- Match 04: [Option ${match4Win}] ${optionDetails[match4Win].name}
+- Match 05 (Wildcard): [Option ${match5Win}] ${optionDetails[match5Win].name}
+
+SEMI-FINALS BRACKET WINNERS:
+- Semi-Final 01: [Option ${semi1Win}] ${optionDetails[semi1Win].name}
+- Semi-Final 02: [Option ${semi2Win}] ${optionDetails[semi2Win].name}
+
+ULTIMATE GRAND TOURNAMENT CHAMPION:
+- Winner: [Option ${finalWinner}] ${optionDetails[finalWinner].name}
+
+Please implement the Ultimate Grand Champion feature directly on the website docs directory.`;
+
+            document.getElementById("reportContent").value = report;
+            document.getElementById("reportModal").style.display = "flex";
+        }
+
+        function closeReportModal() {
+            document.getElementById("reportModal").style.display = "none";
+        }
+
+        function copyReportText() {
+            const textarea = document.getElementById("reportContent");
+            textarea.select();
+            document.execCommand("copy");
+            
+            const btn = document.querySelector(".modal-btn.primary");
+            const originalText = btn.textContent;
+            btn.textContent = "COPIED!";
+            btn.style.backgroundColor = "#4af626";
+            btn.style.color = "#000";
+            
+            triggerTone(600, 'sine', 0.1);
+            setTimeout(() => triggerTone(800, 'sine', 0.15), 80);
+
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.backgroundColor = "";
+                btn.style.color = "";
+                closeReportModal();
+            }, 1000);
+        }
+
+        // =======================================================================
+        // MICRO-DEMO SIMULATIONS IMPLEMENTATION (NO EMOJIS CONSTRAINED)
+        // =======================================================================
+
+        // Option A: Node visualizer simulation
+        let nodeAnimId = null;
+        function initNodeDemo() {
+            const canvas = document.getElementById("node-canvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            
+            // Set canvas bounds
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight || 280;
+
+            const nodes = [];
+            const nodeCount = 18;
+            for(let i=0; i<nodeCount; i++) {
+                nodes.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.8,
+                    vy: (Math.random() - 0.5) * 0.8,
+                    r: Math.random() * 2 + 2
+                });
+            }
+
+            let mouseX = -1000;
+            let mouseY = -1000;
+            canvas.addEventListener("mousemove", (e) => {
+                const rect = canvas.getBoundingClientRect();
+                mouseX = e.clientX - rect.left;
+                mouseY = e.clientY - rect.top;
+            });
+
+            function renderNodes() {
+                if(!document.getElementById("node-canvas")) return;
+                ctx.fillStyle = "rgba(11, 4, 2, 0.2)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw connections
+                ctx.strokeStyle = "rgba(224, 91, 56, 0.08)";
+                ctx.lineWidth = 1;
+                for (let i = 0; i < nodeCount; i++) {
+                    for (let j = i + 1; j < nodeCount; j++) {
+                        const dist = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+                        if (dist < 80) {
+                            ctx.beginPath();
+                            ctx.moveTo(nodes[i].x, nodes[i].y);
+                            ctx.lineTo(nodes[j].x, nodes[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                // Move & Draw nodes
+                nodes.forEach(n => {
+                    n.x += n.vx;
+                    n.y += n.vy;
+                    if(n.x < 0 || n.x > canvas.width) n.vx *= -1;
+                    if(n.y < 0 || n.y > canvas.height) n.vy *= -1;
+
+                    // Attract to mouse
+                    if (mouseX > 0) {
+                        const mDist = Math.hypot(n.x - mouseX, n.y - mouseY);
+                        if (mDist < 100) {
+                            ctx.strokeStyle = "rgba(224, 91, 56, 0.25)";
+                            ctx.beginPath();
+                            ctx.moveTo(n.x, n.y);
+                            ctx.lineTo(mouseX, mouseY);
+                            ctx.stroke();
+                        }
+                    }
+
+                    ctx.fillStyle = "#e05b38";
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                nodeAnimId = requestAnimationFrame(renderNodes);
+            }
+            renderNodes();
+        }
+
+        // Option B: Copper code rain simulation
+        function initRainDemo() {
+            const canvas = document.getElementById("rain-canvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight || 280;
+
+            const words = ["fn", "impl", "match", "unsafe", "mut", "Result", "Option", "let", "struct", "enum", "smash", "shell", "ONNX", "T5", "glibc", "0x7fff", "0x00"];
+            const fontSize = 10;
+            const columns = Math.floor(canvas.width / 45);
+            
+            const drops = [];
+            for (let x = 0; x < columns; x++) {
+                drops[x] = Math.random() * -30;
+            }
+
+            function drawRain() {
+                if(!document.getElementById("rain-canvas")) return;
+                ctx.fillStyle = "rgba(11, 4, 2, 0.1)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.font = "bold " + fontSize + "px 'JetBrains Mono'";
+                ctx.fillStyle = "rgba(224, 91, 56, 0.7)";
+
+                for (let i = 0; i < drops.length; i++) {
+                    const text = words[Math.floor(Math.random() * words.length)];
+                    const x = i * 45;
+                    const y = drops[i] * fontSize;
+
+                    // Draw glow at head
+                    ctx.fillStyle = "#ffaa88";
+                    ctx.fillText(text, x, y);
+                    ctx.fillStyle = "rgba(224, 91, 56, 0.6)";
+                    
+                    if (y > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+                setTimeout(() => {
+                    requestAnimationFrame(drawRain);
+                }, 40);
+            }
+            drawRain();
+        }
+
+        // Option C: Sound spectrograph wave animator
+        function animateWave() {
+            const path = document.getElementById("wavepath");
+            if (!path) return;
+            let offset = 0;
+
+            function renderWave() {
+                if(!document.getElementById("wavepath")) return;
+                offset += 0.08;
+                let d = "M 0 40";
+                const segments = 12;
+                const width = 300;
+                
+                for(let i=0; i<=segments; i++) {
+                    const x = (i / segments) * width;
+                    // Add variance
+                    const multiplier = audioCtx ? 25 : 8;
+                    const y = 40 + Math.sin(i * 1.2 + offset) * multiplier;
+                    d += ` L ${x} ${y}`;
+                }
+                path.setAttribute("d", d);
+                requestAnimationFrame(renderWave);
+            }
+            renderWave();
+        }
+
+        // Option D: CRT controls
+        function changeCrtTheme(val) {
+            const screen = document.getElementById("demo-crt-screen");
+            if (!screen) return;
+            screen.className = "crt-demo-screen " + val + "-theme";
+            triggerTone(200, 'sawtooth', 0.05);
+        }
+
+        function warpCrt(val) {
+            const screen = document.getElementById("demo-crt-screen");
+            if (!screen) return;
+            // Simulate warp scale
+            const scale = 1 + (val / 400);
+            screen.style.transform = `scale(${scale})`;
+            triggerTone(300 + val*10, 'sine', 0.02);
+        }
+
+        function shakeCrt(val) {
+            const screen = document.getElementById("demo-crt-screen");
+            if (!screen) return;
+            if(val > 0) {
+                screen.style.animation = `glitch ${1.5 / val}s infinite steps(2)`;
+            } else {
+                screen.style.animation = "none";
+            }
+            triggerTone(150 + val*20, 'triangle', 0.03);
+        }
+
+        // Option E: Gyroscopic gear demo
+        function initGearDemo() {
+            const box = document.getElementById("gear-box");
+            const wheel = document.getElementById("gear-wheel");
+            if(!box || !wheel) return;
+
+            box.addEventListener("mousemove", (e) => {
+                const rect = box.getBoundingClientRect();
+                const x = e.clientX - rect.left - (rect.width/2);
+                const y = e.clientY - rect.top - (rect.height/2);
+                
+                // Tilt in 3D
+                wheel.style.transform = `rotateX(${-y / 3}deg) rotateY(${x / 3}deg)`;
+            });
+
+            box.addEventListener("mouseleave", () => {
+                wheel.style.transform = "rotateX(0deg) rotateY(0deg)";
+            });
+
+            box.addEventListener("click", () => {
+                triggerTone(600, 'square', 0.1);
+                setTimeout(() => triggerTone(700, 'triangle', 0.05), 50);
+                
+                // Temporary fast rotation effect
+                wheel.style.animation = "spinGear 1s cubic-bezier(0.1, 0.8, 0.3, 1) infinite";
+                setTimeout(() => {
+                    if (document.getElementById("gear-wheel")) {
+                        document.getElementById("gear-wheel").style.animation = "spinGear 8s linear infinite";
+                    }
+                }, 1000);
+            });
+        }
+
+        // Option F: Comparative shell sandbox
+        const sandboxData = {
+            "0": {
+                bash: 'find . -name "*.py"',
+                powershell: 'Get-ChildItem -Recurse -Filter *.py'
+            },
+            "1": {
+                bash: 'df -h',
+                powershell: 'Get-Volume | Select-Object DriveLetter, FileSystemType, SizeRemaining'
+            },
+            "2": {
+                bash: 'find . -mtime -1',
+                powershell: 'Get-ChildItem -Recurse | Where-Object { $_.LastWriteTime -ge (Get-Date).AddDays(-1) }'
+            },
+            "3": {
+                bash: 'lsof -t -i:8080 | xargs kill -9',
+                powershell: 'Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess -Force'
+            }
+        };
+
+        function updateSandbox(val) {
+            const data = sandboxData[val];
+            if(!data) return;
+            document.getElementById("sandbox-bash").textContent = data.bash;
+            document.getElementById("sandbox-powershell").textContent = data.powershell;
+            triggerTone(450, 'sine', 0.05);
+        }
+
+        // Option G: Training simulator
+        let trainingSimActive = false;
+        function startTrainingSim() {
+            if (trainingSimActive) return;
+            trainingSimActive = true;
+            
+            const logBox = document.getElementById("epoch-log");
+            const bar = document.getElementById("epoch-progress-bar");
+            const accText = document.getElementById("epoch-acc");
+            const lossText = document.getElementById("epoch-loss");
+            
+            logBox.textContent = "TRAINING PIPELINE INITIALIZED\nALLOCATING COPROCESSORS\nLOADING ONNX ARCHITECTURE...\n";
+            triggerTone(220, 'sine', 0.2);
+
+            let percent = 0;
+            let loss = 2.41;
+            let acc = 0.00;
+
+            const interval = setInterval(() => {
+                if (!document.getElementById("epoch-log")) {
+                    clearInterval(interval);
+                    trainingSimActive = false;
+                    return;
+                }
+
+                percent += 5;
+                bar.style.width = percent + "%";
+                
+                loss -= 0.11 + (Math.random() - 0.5) * 0.05;
+                if(loss < 0.06) loss = 0.058;
+                
+                acc += 4.9 + (Math.random() - 0.5) * 2;
+                if(acc > 98.51) acc = 98.51;
+
+                lossText.textContent = loss.toFixed(3);
+                accText.textContent = acc.toFixed(2) + "%";
+
+                logBox.textContent += `EPOCH [${Math.floor(percent/10) + 1}/10] - LOSS: ${loss.toFixed(3)} - ACCURACY: ${acc.toFixed(2)}%\n`;
+                logBox.scrollTop = logBox.scrollHeight;
+                
+                triggerTone(200 + percent * 4, 'sine', 0.04);
+
+                if (percent >= 100) {
+                    clearInterval(interval);
+                    logBox.textContent += "\n[TRAINING TASK COMPLETED SUCCESSFULY]\nROUGE-1 CONFIDENCE METRIC STABILIZED AT 98.51%\nSAVED MODEL TO ~/.smash/model/encoder_model.onnx";
+                    logBox.scrollTop = logBox.scrollHeight;
+                    trainingSimActive = false;
+                    
+                    triggerTone(600, 'sine', 0.15);
+                    setTimeout(() => triggerTone(800, 'sine', 0.25), 100);
+                }
+            }, 300);
+        }
+
+        // Option H: Time Machine shifters
+        const timeHistoryData = [
+            {
+                year: "1969",
+                system: "PDP-11 UNIX V1",
+                text: "ls -a\n\nbin\ndev\netc\ntmp\nusr\n\n[GLIBC SYSTEM: LEGACY ASM ROUTINES]"
+            },
+            {
+                year: "1981",
+                system: "MS-DOS 1.0",
+                text: "A:\\> DIR /W\n\nCOMMAND.COM    FORMAT.COM    IO.SYS    MSDOS.SYS\n\n[GLIBC SYSTEM: NON-EXISTENT]"
+            },
+            {
+                year: "1991",
+                system: "EARLY LINUX COMPATIBLE BASH",
+                text: "bash-1.14$ ls -l /usr/bin\ntotal 182\n-rwxr-xr-x  1 root  root  32104 Oct 12 1991 gcc\n-rwxr-xr-x  1 root  root  18212 Oct 12 1991 make"
+            },
+            {
+                year: "2026",
+                system: "SMASH COGNITIVE SHELL",
+                text: "smash:~> smash list python files\n[windows] AI suggests: Get-ChildItem -Filter *.py\n\n[GLIBC SYSTEM: STATIC C23 COMPATIBILITY SHIMS ACTIVE]"
+            }
+        ];
+
+        function shiftTime(val) {
+            const data = timeHistoryData[val];
+            if(!data) return;
+            
+            document.getElementById("history-prompt").innerHTML = `YEAR: ${data.year}<br>SYSTEM: ${data.system}<br><br>${data.text}`;
+            triggerTone(200 + val*150, 'sine', 0.05);
+        }
+
+        // Option I: SSH virtual prompt emulator
+        function handleSshInput(e) {
+            if (e.key === "Enter") {
+                const input = document.getElementById("ssh-cmd-input");
+                const val = input.value.trim().toLowerCase();
+                const history = document.getElementById("ssh-history");
+
+                history.innerHTML += `<div>guest@smash:~$ ${input.value}</div>`;
+                
+                triggerTone(400, 'sine', 0.06);
+
+                let reply = "";
+                if(val === "help") {
+                    reply = "SUPPORTED TELEMETRY INSTRUCTIONS:<br>ls &nbsp; - list local sandboxed files<br>cat - view file contents<br>whoami &nbsp;- reveal user authorization<br>clear &nbsp; - wipe diagnostic log bounds";
+                } else if(val === "ls") {
+                    reply = "total 3<br>-rw-r--r-- &nbsp;1 guest &nbsp;guest &nbsp;103 May 26 &nbsp;2026 license.txt<br>-rw-r--r-- &nbsp;1 guest &nbsp;guest &nbsp;240 May 26 &nbsp;2026 secret_notes.txt";
+                } else if(val === "whoami") {
+                    reply = "guest user - read-only telemetry session";
+                } else if(val === "clear") {
+                    history.innerHTML = "";
+                    input.value = "";
+                    return;
+                } else if(val.startsWith("cat ")) {
+                    const arg = val.substring(4).trim();
+                    if(arg === "license.txt") {
+                        reply = "smash neural shell operates under APACHE LICENSE 2.0. Clean, cross-platform computing companion.";
+                    } else if(arg === "secret_notes.txt") {
+                        reply = "SECRET LOGS: 0.4.2 model features an offline 60M T5 Transformer running sub-200ms CPU inference! Fully autonomous.";
+                    } else {
+                        reply = `cat: ${arg}: file not discovered`;
+                    }
+                } else if (val === "") {
+                    reply = "";
+                } else {
+                    reply = `ssh-terminal: instruction not recognized: ${val}`;
+                }
+
+                if (reply !== "") {
+                    history.innerHTML += `<div style="color:var(--text-dim); padding-left: 0.5rem;">${reply}</div>`;
+                }
+
+                input.value = "";
+                document.getElementById("ssh-terminal-screen").scrollTop = document.getElementById("ssh-terminal-screen").scrollHeight;
+            }
+        }
+
+        // Option J: Swapping main body colors
+        const themes = {
+            copper: {
+                bg: '#0b0402',
+                card: '#150906',
+                accent: '#e05b38',
+                glow: 'rgba(224, 91, 56, 0.25)',
+                border: 'rgba(224, 91, 56, 0.18)'
+            },
+            green: {
+                bg: '#020b04',
+                card: '#061509',
+                accent: '#4af626',
+                glow: 'rgba(74, 246, 38, 0.25)',
+                border: 'rgba(74, 246, 38, 0.18)'
+            },
+            amber: {
+                bg: '#0c0701',
+                card: '#1b1104',
+                accent: '#ffb834',
+                glow: 'rgba(255, 184, 52, 0.25)',
+                border: 'rgba(255, 184, 52, 0.18)'
+            },
+            charcoal: {
+                bg: '#0b0d0e',
+                card: '#15191a',
+                accent: '#f7e9da',
+                glow: 'rgba(247, 233, 218, 0.25)',
+                border: 'rgba(247, 233, 218, 0.18)'
+            }
+        };
+
+        function toggleMainTheme(themeName) {
+            const colors = themes[themeName];
+            if(!colors) return;
+
+            document.documentElement.style.setProperty('--bg-color', colors.bg);
+            document.documentElement.style.setProperty('--bg-card', colors.card);
+            document.documentElement.style.setProperty('--accent-color', colors.accent);
+            document.documentElement.style.setProperty('--accent-glow', colors.glow);
+            document.documentElement.style.setProperty('--border-color', colors.border);
+
+            // Re-render logo gradient matching the switcher color
+            const logo = document.querySelector("h1");
+            if (themeName === 'copper') {
+                logo.style.background = 'linear-gradient(135deg, #ff7c4d 0%, #e05b38 60%, #a8351a 100%)';
+            } else if(themeName === 'green') {
+                logo.style.background = 'linear-gradient(135deg, #a4ff8d 0%, #4af626 60%, #1c9205 100%)';
+            } else if(themeName === 'amber') {
+                logo.style.background = 'linear-gradient(135deg, #ffdf88 0%, #ffb834 60%, #aa6d00 100%)';
+            } else {
+                logo.style.background = 'linear-gradient(135deg, #ffffff 0%, #f7e9da 60%, #999086 100%)';
+            }
+            logo.style.webkitBackgroundClip = 'text';
+            logo.style.webkitTextFill-color = 'transparent';
+
+            triggerTone(500, 'sine', 0.1);
+        }
+    </script>
+</body>
+</html>
