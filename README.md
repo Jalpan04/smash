@@ -17,19 +17,38 @@ A cross-platform shell written in Rust with an embedded AI that translates natur
 
 ## Quick Start
 
-### Linux (one command)
+### Linux (One-Command Install)
+
+To automatically install Smash on Linux (downloads the latest binary, sets up AI model files under `~/.smash/model`, configures `SMASH_MODEL_DIR`, and updates your shell PATH):
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/Jalpan04/smash/master/install.sh | bash
 ```
 
-### Windows (PowerShell)
+After installation completes, restart your terminal or reload your shell configuration:
+```bash
+source ~/.bashrc  # or ~/.zshrc depending on your shell
+smash
+```
+
+### Windows (One-Command Install)
+
+To automatically install Smash on Windows (downloads the latest binary, sets up AI model files under `~/.smash/model`, configures the `SMASH_MODEL_DIR` environment variable, and appends it to your user PATH):
+
+Open **PowerShell** and run:
 
 ```powershell
 irm https://raw.githubusercontent.com/Jalpan04/smash/master/install.ps1 | iex
 ```
 
+After installation completes, **restart your PowerShell terminal** to apply the path changes, then simply type:
+```powershell
+smash
+```
+
 ### From source
+
+If you prefer to compile from source:
 
 ```bash
 git clone https://github.com/Jalpan04/smash.git
@@ -40,7 +59,7 @@ cargo build --release
 
 ### Pre-built binaries
 
-Download from [Releases](https://github.com/Jalpan04/smash/releases). The AI model is included in the repository via Git LFS.
+Alternatively, you can manually download pre-built binaries from [Releases](https://github.com/Jalpan04/smash/releases). To use the AI features when downloading manually, you must clone or download the ONNX model files from this repository and set the `SMASH_MODEL_DIR` environment variable to point to their directory.
 
 ## Usage
 
