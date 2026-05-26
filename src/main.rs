@@ -419,36 +419,36 @@ fn main() {
 mod glibc_shims {
     use std::os::raw::{c_char, c_int, c_long, c_longlong, c_ulonglong};
 
-    extern "C" {
+    unsafe extern "C" {
         fn strtoll(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_longlong;
         fn strtoull(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_ulonglong;
         fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_long;
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn __isoc23_strtoll(
         nptr: *const c_char,
         endptr: *mut *mut c_char,
         base: c_int,
     ) -> c_longlong {
-        strtoll(nptr, endptr, base)
+        unsafe { strtoll(nptr, endptr, base) }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn __isoc23_strtoull(
         nptr: *const c_char,
         endptr: *mut *mut c_char,
         base: c_int,
     ) -> c_ulonglong {
-        strtoull(nptr, endptr, base)
+        unsafe { strtoull(nptr, endptr, base) }
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn __isoc23_strtol(
         nptr: *const c_char,
         endptr: *mut *mut c_char,
         base: c_int,
     ) -> c_long {
-        strtol(nptr, endptr, base)
+        unsafe { strtol(nptr, endptr, base) }
     }
 }
