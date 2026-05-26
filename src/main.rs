@@ -405,3 +405,50 @@ fn main() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// GLIBC Compatibility Shims
+// ---------------------------------------------------------------------------
+// The precompiled static ONNX Runtime library (libonnxruntime.a) used by
+// the 'ort' crate requires GLIBC 2.38+ symbols (__isoc23_strtoll, etc.).
+// To enable compilation and runtime compatibility on older GLIBC versions
+// (like GLIBC 2.35 on Ubuntu 22.04), we define these compatibility shims
+// that forward the calls to standard strtoll/strtoull/strtol.
+// ---------------------------------------------------------------------------
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+mod glibc_shims {
+    use std::os::raw::{c_char, c_int, c_long, c_longlong, c_ulonglong};
+
+    extern "C" {
+        fn strtoll(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_longlong;
+        fn strtoull(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_ulonglong;
+        fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_long;
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn __isoc23_strtoll(
+        nptr: *const c_char,
+        endptr: *mut *mut c_char,
+        base: c_int,
+    ) -> c_longlong {
+        strtoll(nptr, endptr, base)
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn __isoc23_strtoull(
+        nptr: *const c_char,
+        endptr: *mut *mut c_char,
+        base: c_int,
+    ) -> c_ulonglong {
+        strtoull(nptr, endptr, base)
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn __isoc23_strtol(
+        nptr: *const c_char,
+        endptr: *mut *mut c_char,
+        base: c_int,
+    ) -> c_long {
+        strtol(nptr, endptr, base)
+    }
+}
