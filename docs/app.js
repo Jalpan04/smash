@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 // 1. Text Copy Utility
 // ---------------------------------------------------------------------------
-function copyText(elementId, button) {
+function triggerCopy(elementId, button) {
     const codeElement = document.getElementById(elementId);
     if (!codeElement) return;
 
@@ -17,8 +17,8 @@ function copyText(elementId, button) {
         // Visual feedback
         const originalText = button.textContent;
         button.textContent = "COPIED!";
-        button.style.color = "#ffff80";
-        button.style.borderColor = "#ffff80";
+        button.style.color = "#e05b38";
+        button.style.borderColor = "#e05b38";
         
         setTimeout(() => {
             button.textContent = originalText;
@@ -33,7 +33,7 @@ function copyText(elementId, button) {
 // ---------------------------------------------------------------------------
 // 2. Interactive Terminal Emulator
 // ---------------------------------------------------------------------------
-const terminalScreen = document.getElementById("terminal-screen");
+const terminalScreen = document.getElementById("emulator-screen");
 
 // Scenario actions:
 // 'type' = typing a command
