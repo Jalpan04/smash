@@ -23,6 +23,12 @@ A cross-platform shell written in Rust with an embedded AI that translates natur
 curl -sSL https://raw.githubusercontent.com/Jalpan04/smash/master/install.sh | bash
 ```
 
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/Jalpan04/smash/master/install.ps1 | iex
+```
+
 ### From source
 
 ```bash
