@@ -221,7 +221,13 @@ fn main() {
     println!("Smash (Smart Bash) - running on {}", PLATFORM);
     println!("Loading AI model...");
 
-    let model_dir = env::var("SMASH_MODEL_DIR").unwrap_or_else(|_| "output/onnx".to_string());
+    let model_dir = env::var("SMASH_MODEL_DIR").unwrap_or_else(|_| {
+        dirs::home_dir()
+            .map(|h| h.join(".smash/model"))
+            .filter(|p| p.exists())
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "output/onnx".to_string())
+    });
 
     let mut ai = match SmashAI::new(&model_dir) {
         Ok(ai) => {
