@@ -166,4 +166,4 @@ cargo test --test parser_tests
 
 ## License
 
-Apache 2.0 - see [LICENSE](LICENSE).
+This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
