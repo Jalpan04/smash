@@ -1,5 +1,7 @@
 # Smash
 
+![GitHub top language](https://img.shields.io/github/languages/top/Jalpan04/smash) ![GitHub repo size](https://img.shields.io/github/repo-size/Jalpan04/smash) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A cross-platform shell written in Rust with an embedded AI that translates natural language into shell commands.
 
 ## Features
